@@ -10,3 +10,4 @@ New ideas land here with a one-line rationale. Nothing exits mid-phase; entries 
 ## Filed during Stage B
 
 - **UI modernisation pass (B5 candidate)** — depth via layered shadows, springy tap micro-interactions, actually load Space Grotesk/IBM Plex Mono (CSS names them but never loads them), dark mode, richer tab chips. Rationale: current look is v13-faithful by contract; a deliberate polish pass fits B5's scope. (Filed 11 Jul 2026 from Darren's feedback.)
+- **Lexi content depth** — only 222 of the 430 six-letter dictionary words qualify as puzzles (7–16 targets), and the daily hash can repeat one at any time. Two levers: expand the 6-letter dictionary (every qualifying addition = a new puzzle) and/or add no-repeat daily scheduling once history storage exists (B2+). Rationale: ~7 months of unique dailies is thin if the game gets traction. (Filed 11 Jul 2026.)

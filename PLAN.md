@@ -81,10 +81,11 @@ DAYBATCH #14 · 85/100 🔥7
 📡 Sonar — Perfect 🏆
 🔐 Codebreak — 4/8
 🔤 Lexi — No hints
-daybatch.app
+https://daybatch.app
 ```
-(unplayed games show `— not played`; per-game share cards remain, gaining the daybatch.app footer line)
-**Accept:** score math unit-tested for all tier combos; streak math tested across date boundaries incl. Pacific/Auckland; share card renders, copies, and Web-Shares on mobile; EPOCH constant set and documented.
+(unplayed games show `— not played`; per-game share cards remain, gaining the same link footer line)
+- **Link footer (Darren, 11 Jul 2026): the address must arrive as a tappable link, not plain decoration.** Footer line is the full URL `https://daybatch.app` (the scheme makes receiving apps auto-link it reliably); when sharing via the Web Share API, also pass `url: "https://daybatch.app"` so share targets render a proper link preview. Applies to the unified card and every per-game card.
+**Accept:** score math unit-tested for all tier combos; streak math tested across date boundaries incl. Pacific/Auckland; share card renders, copies, and Web-Shares on mobile with the tappable link footer; EPOCH constant set and documented.
 
 ### B4 — PWA
 Manifest, icons, standalone display, theme colour; service worker cache-first shell with versioned cache-busting; iOS meta tags; one-time subtle install hint.
