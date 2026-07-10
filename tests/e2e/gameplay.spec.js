@@ -225,3 +225,24 @@ test("Lexi: hint fills a slot word and hinting every word triggers the win modal
   await expect(page.locator("#lx-found")).toHaveText(`${total}/${total}`);
   expect(errors).toEqual([]);
 });
+
+// ------------------------------------------------- LEXI SHUFFLE (v0.B1.2) ----
+
+test("Lexi: FOUND/HINTS counters survive a shuffle (B1.2 regression)", async ({ page }) => {
+  const errors = trackErrors(page);
+  await openTab(page, "lexi");
+
+  // Bank two words via hints, then shuffle: the rebuilt stats row must show
+  // the live counts, not reset to zero (v13 bug fixed in v0.B1.2).
+  await page.locator("#lx-hint").click();
+  await page.locator("#lx-hint").click();
+  await expect(page.locator("#lx-found")).toHaveText(/^2\//);
+  await expect(page.locator("#lx-hints")).toHaveText("2");
+
+  await page.locator("#lx-shuffle").click();
+  await expect(page.locator("#lx-found")).toHaveText(/^2\//);
+  await expect(page.locator("#lx-hints")).toHaveText("2");
+  expect(await page.locator(".lx-word.hinted").count()).toBe(2);
+
+  expect(errors).toEqual([]);
+});

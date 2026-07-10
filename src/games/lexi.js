@@ -1,4 +1,6 @@
 // LEXI — ported verbatim from v13 (reference/daybatch-v13.html).
+// v0.B1.2 deviation (approved by Darren, 11 Jul 2026): build() renders the live
+// found/hints counts — v13 hardcoded 0, so 🔀 Shuffle reset the visible stats.
 // gen()/counts()/canForm() are exported for logic tests; initLexi() wires the DOM.
 import { mulberry32, dailySeed } from "../core/rng.js";
 import { showResult, showHelp } from "../core/ui.js";
@@ -45,8 +47,8 @@ function build(){
   pane.innerHTML=`
     <div class="stats">
       <button class="helpbtn" id="lx-help">?</button>
-      <div class="stat big"><div class="lb">FOUND</div><div class="vl" style="color:var(--win)" id="lx-found">0/${puz.targets.length}</div></div>
-      <div class="stat"><div class="lb">HINTS</div><div class="vl" id="lx-hints">0</div></div>
+      <div class="stat big"><div class="lb">FOUND</div><div class="vl" style="color:var(--win)" id="lx-found">${found.size}/${puz.targets.length}</div></div>
+      <div class="stat"><div class="lb">HINTS</div><div class="vl" id="lx-hints">${hints}</div></div>
       <div class="stat"><div class="lb">MODE</div><div class="vl" style="color:var(--faded)">${isDaily?"DAILY":"PRAC"}</div></div>
     </div>
     <div class="board" style="padding:8px 6px">
