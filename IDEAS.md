@@ -9,4 +9,4 @@ New ideas land here with a one-line rationale. Nothing exits mid-phase; entries 
 
 ## Filed during Stage B
 
-(none yet)
+- **UI modernisation pass (B5 candidate)** — depth via layered shadows, springy tap micro-interactions, actually load Space Grotesk/IBM Plex Mono (CSS names them but never loads them), dark mode, richer tab chips. Rationale: current look is v13-faithful by contract; a deliberate polish pass fits B5's scope. (Filed 11 Jul 2026 from Darren's feedback.)
