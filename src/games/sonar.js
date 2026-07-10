@@ -1,5 +1,5 @@
 // SONAR — ported verbatim from v13 (reference/daybatch-v13.html).
-// gen()/tryGen() are exported for logic tests; initSonar() wires the DOM.
+// gen() is exported for logic tests; initSonar() wires the DOM.
 import { mulberry32, dailySeed } from "../core/rng.js";
 import { showResult, showHelp } from "../core/ui.js";
 
@@ -7,7 +7,7 @@ const SN=7,SHIPS=[3,2,2];
 let pane;
 let puz,revealed,status,isDaily;
 
-export function tryGen(sd){
+function tryGen(sd){
   const rng=mulberry32(sd);
   for(let attempt=0;attempt<200;attempt++){
     const occ=new Set(),blocked=new Set();let ok=true;

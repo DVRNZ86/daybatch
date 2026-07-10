@@ -5,7 +5,7 @@ export function el(html){const t=document.createElement("template");t.innerHTML=
 
 let overlay,modal,modalCtx=null;
 
-export function confetti(){
+function confetti(){
   const colors=["#FF6B2C","#1F9D55","#E6A817","#2E86AB","#9B5DE5","#16324F"];
   for(let i=0;i<90;i++){
     const p=document.createElement("div");p.className="cf";

@@ -1,6 +1,6 @@
 // TALLY — ported verbatim from v13 (reference/daybatch-v13.html).
-// Pure helpers (neighbors/applyOp/genCells/solveGrid/gen) are exported for
-// logic tests; initTally() wires the DOM.
+// Pure helpers (neighbors/applyOp/solveGrid/gen) are exported for logic
+// tests; initTally() wires the DOM.
 import { mulberry32, dailySeed } from "../core/rng.js";
 import { showResult, showHelp } from "../core/ui.js";
 
@@ -16,7 +16,7 @@ export function neighbors(i){
   return out;
 }
 export function applyOp(t,op,n){return op==="+"?t+n:op==="−"?t-n:t*n;}
-export function genCells(rng){
+function genCells(rng){
   const cells=[];
   for(let r=0;r<SIZE;r++)for(let c=0;c<SIZE;c++){
     if((r+c)%2===0)cells.push({type:"num",value:1+Math.floor(rng()*9)});
