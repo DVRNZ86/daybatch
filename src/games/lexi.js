@@ -1,0 +1,200 @@
+// LEXI — ported verbatim from v13 (reference/daybatch-v13.html).
+// gen()/counts()/canForm() are exported for logic tests; initLexi() wires the DOM.
+import { mulberry32, dailySeed } from "../core/rng.js";
+import { showResult, showHelp } from "../core/ui.js";
+import { W6, ALL } from "./words.js";
+
+export function counts(w){const c={};for(const ch of w)c[ch]=(c[ch]||0)+1;return c;}
+export function canForm(word,base){const b=Object.assign({},base);for(const ch of word){if(!b[ch])return false;b[ch]--;}return true;}
+
+let pane;
+let puz,found,hinted,hints,status,isDaily,seq,dragging=false,moved=false;
+let letterEls,elPrev,wheelEl,centers;
+
+export function gen(sd){
+  const rng=mulberry32(sd);
+  const start=Math.floor(rng()*W6.length);
+  for(let k=0;k<W6.length;k++){
+    const seed=W6[(start+k)%W6.length];
+    const base=counts(seed);
+    const targets=ALL.filter(w=>w.length<=6&&canForm(w,base));
+    if(targets.length>=7&&targets.length<=16){
+      targets.sort((a,b)=>a.length-b.length||a.localeCompare(b));
+      // shuffle wheel letters
+      const letters=seed.split("");
+      for(let i=letters.length-1;i>0;i--){const j=Math.floor(rng()*(i+1));const t=letters[i];letters[i]=letters[j];letters[j]=t;}
+      return{seed,letters,targets};
+    }
+  }
+  return null;
+}
+function load(sd,daily){
+  isDaily=daily;puz=gen(sd);
+  if(!puz)puz=gen((sd+99991)>>>0);
+  found=new Set();hinted=new Set();hints=0;status="play";seq=[];
+  build();
+}
+function slotsHTML(){
+  return puz.targets.map(w=>{
+    const isF=found.has(w),isH=hinted.has(w);
+    return `<span class="lx-word${isF?(isH?" hinted":" found"):""}">${
+      w.split("").map(ch=>`<b>${isF?ch:""}</b>`).join("")}</span>`;
+  }).join("");
+}
+function build(){
+  pane.innerHTML=`
+    <div class="stats">
+      <button class="helpbtn" id="lx-help">?</button>
+      <div class="stat big"><div class="lb">FOUND</div><div class="vl" style="color:var(--win)" id="lx-found">0/${puz.targets.length}</div></div>
+      <div class="stat"><div class="lb">HINTS</div><div class="vl" id="lx-hints">0</div></div>
+      <div class="stat"><div class="lb">MODE</div><div class="vl" style="color:var(--faded)">${isDaily?"DAILY":"PRAC"}</div></div>
+    </div>
+    <div class="board" style="padding:8px 6px">
+      <div class="lx-slots" id="lx-slots">${slotsHTML()}</div>
+      <div id="lx-preview">&nbsp;</div>
+      <div id="lx-wheelwrap">
+        <div class="lx-ring"></div>
+        <svg id="lx-svg" viewBox="0 0 230 230">
+          <polyline id="lx-line" points="" fill="none" stroke="var(--marker)" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" opacity=".45"/>
+        </svg>
+        ${puz.letters.map((ch,i)=>{
+          const a=-Math.PI/2+i*2*Math.PI/puz.letters.length;
+          const x=115+78*Math.cos(a),y=115+78*Math.sin(a);
+          return `<div class="lx-letter" data-i="${i}" style="left:${x}px;top:${y}px">${ch}</div>`;
+        }).join("")}
+      </div>
+      <div class="lx-tools">
+        <button id="lx-back">⌫</button>
+        <button id="lx-check" style="border-color:var(--marker);color:var(--marker)">✓ Check</button>
+        <button id="lx-shuffle">🔀</button>
+        <button id="lx-hint">💡 Hint</button>
+      </div>
+    </div>
+    <div class="btnrow">
+      <button class="btn" id="lx-new">New puzzle</button>
+      <button class="btn pri" id="lx-today">Today's</button>
+    </div>
+    <div class="slimhost"></div>`;
+  wheelEl=pane.querySelector("#lx-wheelwrap");
+  elPrev=pane.querySelector("#lx-preview");
+  letterEls=[...pane.querySelectorAll(".lx-letter")];
+  centers=puz.letters.map((_,i)=>{
+    const a=-Math.PI/2+i*2*Math.PI/puz.letters.length;
+    return[115+78*Math.cos(a),115+78*Math.sin(a)];
+  });
+  pane.querySelector("#lx-help").onclick=()=>showHelp(LX_HELP);
+  pane.querySelector("#lx-shuffle").onclick=shuffle;
+  pane.querySelector("#lx-back").onclick=()=>{seq.pop();drawSeq();};
+  pane.querySelector("#lx-check").onclick=()=>{submitSeq();};
+  pane.querySelector("#lx-hint").onclick=hint;
+  pane.querySelector("#lx-new").onclick=()=>load(Math.floor(Math.random()*1e9),false);
+  pane.querySelector("#lx-today").onclick=()=>load(dailySeed("lexi"),true);
+  wheelEl.addEventListener("touchmove",e=>e.preventDefault(),{passive:false});
+  wheelEl.addEventListener("touchstart",e=>{if(e.touches.length===1)e.preventDefault();},{passive:false});
+  wheelEl.addEventListener("pointerdown",onDown);
+  wheelEl.addEventListener("pointermove",onMove);
+  wheelEl.addEventListener("pointerup",onUp);
+  wheelEl.addEventListener("pointercancel",onUp);
+}
+function shuffle(){
+  const idx=puz.letters.map((_,i)=>i);
+  for(let i=idx.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));const t=idx[i];idx[i]=idx[j];idx[j]=t;}
+  puz.letters=idx.map(i=>puz.letters[i]);
+  seq=[];build();
+}
+function hint(){
+  const unfound=puz.targets.filter(w=>!found.has(w));
+  if(!unfound.length||status!=="play")return;
+  const w=unfound[0];
+  found.add(w);hinted.add(w);hints++;
+  refresh();
+  checkWin();
+}
+function letterFromPoint(x,y){
+  const rect=wheelEl.getBoundingClientRect();
+  const px=(x-rect.left)*(230/rect.width),py=(y-rect.top)*(230/rect.height);
+  for(let i=0;i<centers.length;i++){
+    const dx=px-centers[i][0],dy=py-centers[i][1];
+    if(dx*dx+dy*dy<26*26)return i;
+  }
+  return -1;
+}
+function drawSeq(){
+  letterEls.forEach((el,i)=>el.classList.toggle("sel",seq.indexOf(i)>=0));
+  pane.querySelector("#lx-line").setAttribute("points",seq.map(i=>centers[i].join(",")).join(" "));
+  elPrev.textContent=seq.length?seq.map(i=>puz.letters[i]).join(""):" ";
+  elPrev.style.color="var(--marker)";
+}
+function onDown(e){
+  if(status!=="play")return;
+  try{wheelEl.setPointerCapture(e.pointerId);}catch(err){}
+  dragging=true;moved=false;
+  const i=letterFromPoint(e.clientX,e.clientY);
+  if(i<0)return;
+  const pos=seq.indexOf(i);
+  if(pos<0)seq.push(i);                    // tap or swipe-start: add letter
+  else if(pos===seq.length-1)seq.pop();    // tapping the last letter again = undo
+  drawSeq();
+}
+function onMove(e){
+  if(!dragging||status!=="play")return;
+  e.preventDefault();
+  const i=letterFromPoint(e.clientX,e.clientY);
+  if(i<0)return;
+  const pos=seq.indexOf(i);
+  if(pos>=0){
+    if(pos===seq.length-2){seq.pop();moved=true;drawSeq();} // retrace to undo
+  }else{
+    seq.push(i);moved=true;drawSeq();
+  }
+}
+function onUp(){
+  if(!dragging)return;
+  dragging=false;
+  if(status!=="play")return;
+  if(moved)submitSeq();            // swipe gesture: release = submit
+  // plain tap: keep building — submit via ✓ Check or a finishing swipe
+}
+function submitSeq(){
+  const word=seq.map(i=>puz.letters[i]).join("");
+  if(word.length>=3){
+    if(puz.targets.indexOf(word)>=0&&!found.has(word)){
+      found.add(word);
+      refresh();
+      elPrev.textContent=word;
+      elPrev.style.color="var(--win)";
+      checkWin();
+    }else if(found.has(word)){
+      elPrev.style.color="var(--faded)";
+    }else{
+      elPrev.style.color="var(--bad)";
+      wheelEl.classList.remove("shakeX");void wheelEl.offsetWidth;wheelEl.classList.add("shakeX");
+    }
+  }
+  seq=[];
+  setTimeout(()=>{if(!dragging&&!seq.length){letterEls.forEach(el=>el.classList.remove("sel"));pane.querySelector("#lx-line").setAttribute("points","");}},350);
+}
+function refresh(){
+  pane.querySelector("#lx-slots").innerHTML=slotsHTML();
+  pane.querySelector("#lx-found").textContent=found.size+"/"+puz.targets.length;
+  pane.querySelector("#lx-hints").textContent=hints;
+}
+function checkWin(){
+  if(found.size===puz.targets.length){
+    status="win";
+    finish();
+  }
+}
+function finish(){
+  const label=hints===0?"Wordsmith! 🏆":hints<=2?"Sharp!":"Solved!";
+  const share="DAYBATCH · LEXI 🔤 "+label+"\n"+puz.targets.length+" words · "+hints+" hint"+(hints===1?"":"s");
+  showResult({win:true,title:label,
+    line:puz.targets.length+" words · "+hints+" hint"+(hints===1?"":"s"),share,
+    onAgain:()=>load(Math.floor(Math.random()*1e9),false),
+    slimHost:pane.querySelector(".slimhost")});
+}
+const LX_HELP=`<b>Swipe through the letters</b> and release to submit — or <b>tap letters one by one</b> and press ✓ Check. Every word uses each wheel letter at most once.<br><br>Fill every slot above the wheel — all target words are <b>common English words</b> of 3+ letters made from today's six letters.<br><br><b>🔀 Shuffle</b> rearranges the wheel when you're stuck — it often shakes a word loose. <b>💡 Hint</b> reveals a whole word, but hints count against your rank.<br><br>Retrace your swipe to undo a letter.`;
+export function initLexi(){
+  pane=document.getElementById("pane-lexi");
+  load(dailySeed("lexi"),true);
+}
