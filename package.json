@@ -1,0 +1,13 @@
+{
+  "name": "daybatch",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "npm run test:logic && npm run test:e2e",
+    "test:logic": "node --test 'tests/logic/*.test.js'",
+    "test:e2e": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.54.0"
+  }
+}
