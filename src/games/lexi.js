@@ -3,14 +3,15 @@
 // found/hints counts — v13 hardcoded 0, so 🔀 Shuffle reset the visible stats.
 // gen()/counts()/canForm() are exported for logic tests; initLexi() wires the DOM.
 import { mulberry32, dailySeed } from "../core/rng.js";
-import { showResult, showHelp } from "../core/ui.js";
+import { showResult, showHelp, showSlimBar } from "../core/ui.js";
+import { getGameState, setGameState, addHistory, localDateKey } from "../core/storage.js";
 import { W6, ALL } from "./words.js";
 
 export function counts(w){const c={};for(const ch of w)c[ch]=(c[ch]||0)+1;return c;}
 export function canForm(word,base){const b=Object.assign({},base);for(const ch of word){if(!b[ch])return false;b[ch]--;}return true;}
 
 let pane;
-let puz,found,hinted,hints,status,isDaily,seq,dragging=false,moved=false;
+let puz,found,hinted,hints,status,isDaily,seq,dragging=false,moved=false,seedCur,dateCur;
 let letterEls,elPrev,wheelEl,centers;
 
 export function gen(sd){
@@ -31,10 +32,32 @@ export function gen(sd){
   return null;
 }
 function load(sd,daily){
-  isDaily=daily;puz=gen(sd);
+  isDaily=daily;seedCur=sd;dateCur=localDateKey();puz=gen(sd);
   if(!puz)puz=gen((sd+99991)>>>0);
   found=new Set();hinted=new Set();hints=0;status="play";seq=[];
-  build();
+  build();persist();
+}
+// B2 persistence: daily games snapshot on every mutation (incl. wheel order);
+// practice is ephemeral.
+function persist(){
+  if(!isDaily)return;
+  setGameState("lexi",{date:dateCur,seed:seedCur,letters:puz.letters,found:[...found],hinted:[...hinted],hints,status});
+}
+// Tier per PLAN.md B2 contract: 0 hints→1, ≤2→2, 3+→3.
+export function tierFor(h){return h===0?1:h<=2?2:3;}
+function openDaily(){
+  const sd=dailySeed("lexi");
+  const s=getGameState("lexi");
+  if(s&&s.date===localDateKey()&&s.seed===sd){
+    isDaily=true;seedCur=s.seed;dateCur=s.date;puz=gen(s.seed);
+    if(!puz)puz=gen((s.seed+99991)>>>0);
+    puz.letters=s.letters;
+    found=new Set(s.found);hinted=new Set(s.hinted);hints=s.hints;status=s.status;seq=[];
+    build();
+    if(status!=="play")showSlimBar(result());
+    return;
+  }
+  load(sd,true);
 }
 function slotsHTML(){
   return puz.targets.map(w=>{
@@ -90,7 +113,7 @@ function build(){
   pane.querySelector("#lx-check").onclick=()=>{submitSeq();};
   pane.querySelector("#lx-hint").onclick=hint;
   pane.querySelector("#lx-new").onclick=()=>load(Math.floor(Math.random()*1e9),false);
-  pane.querySelector("#lx-today").onclick=()=>load(dailySeed("lexi"),true);
+  pane.querySelector("#lx-today").onclick=()=>openDaily();
   wheelEl.addEventListener("touchmove",e=>e.preventDefault(),{passive:false});
   wheelEl.addEventListener("touchstart",e=>{if(e.touches.length===1)e.preventDefault();},{passive:false});
   wheelEl.addEventListener("pointerdown",onDown);
@@ -102,14 +125,14 @@ function shuffle(){
   const idx=puz.letters.map((_,i)=>i);
   for(let i=idx.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));const t=idx[i];idx[i]=idx[j];idx[j]=t;}
   puz.letters=idx.map(i=>puz.letters[i]);
-  seq=[];build();
+  seq=[];build();persist();
 }
 function hint(){
   const unfound=puz.targets.filter(w=>!found.has(w));
   if(!unfound.length||status!=="play")return;
   const w=unfound[0];
   found.add(w);hinted.add(w);hints++;
-  refresh();
+  persist();refresh();
   checkWin();
 }
 function letterFromPoint(x,y){
@@ -162,7 +185,7 @@ function submitSeq(){
   if(word.length>=3){
     if(puz.targets.indexOf(word)>=0&&!found.has(word)){
       found.add(word);
-      refresh();
+      persist();refresh();
       elPrev.textContent=word;
       elPrev.style.color="var(--win)";
       checkWin();
@@ -184,19 +207,24 @@ function refresh(){
 function checkWin(){
   if(found.size===puz.targets.length){
     status="win";
+    persist();
     finish();
   }
 }
-function finish(){
+function result(){
   const label=hints===0?"Wordsmith! 🏆":hints<=2?"Sharp!":"Solved!";
   const share="DAYBATCH · LEXI 🔤 "+label+"\n"+puz.targets.length+" words · "+hints+" hint"+(hints===1?"":"s");
-  showResult({win:true,title:label,
+  return{win:true,title:label,
     line:puz.targets.length+" words · "+hints+" hint"+(hints===1?"":"s"),share,
     onAgain:()=>load(Math.floor(Math.random()*1e9),false),
-    slimHost:pane.querySelector(".slimhost")});
+    slimHost:pane.querySelector(".slimhost")};
+}
+function finish(){
+  if(isDaily)addHistory({date:dateCur,game:"lexi",tier:tierFor(hints),metrics:{words:puz.targets.length,hints,win:true}});
+  showResult(result());
 }
 const LX_HELP=`<b>Swipe through the letters</b> and release to submit — or <b>tap letters one by one</b> and press ✓ Check. Every word uses each wheel letter at most once.<br><br>Fill every slot above the wheel — all target words are <b>common English words</b> of 3+ letters made from today's six letters.<br><br><b>🔀 Shuffle</b> rearranges the wheel when you're stuck — it often shakes a word loose. <b>💡 Hint</b> reveals a whole word, but hints count against your rank.<br><br>Retrace your swipe to undo a letter.`;
 export function initLexi(){
   pane=document.getElementById("pane-lexi");
-  load(dailySeed("lexi"),true);
+  openDaily();
 }

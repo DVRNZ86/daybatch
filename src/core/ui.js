@@ -16,7 +16,7 @@ function confetti(){
   }
 }
 
-export function showResult(ctx){ // {win,title,line,share,onAgain,slimHost}
+function fillModal(ctx){
   modalCtx=ctx;
   modal.className=ctx.win?"win":"fail";
   document.getElementById("m-title").innerHTML=ctx.win
@@ -24,15 +24,24 @@ export function showResult(ctx){ // {win,title,line,share,onAgain,slimHost}
   document.getElementById("m-line").textContent=ctx.line;
   document.getElementById("m-share").textContent=ctx.share;
   document.getElementById("m-copy").textContent="Share";
+}
+
+// Slim result bar under the game. Its Result button re-fills the modal from
+// this ctx, so a restored game's bar reopens the right result even if another
+// game's modal was shown meanwhile (B2).
+export function showSlimBar(ctx){
+  if(!ctx.slimHost)return;
+  ctx.slimHost.innerHTML="";
+  const bar=el(`<div class="slimbar ${ctx.win?"win":"fail"}"><span>${ctx.win?"🎉":"💥"} ${ctx.title}</span><button>Result</button></div>`);
+  bar.querySelector("button").onclick=()=>{fillModal(ctx);overlay.classList.add("show");};
+  ctx.slimHost.appendChild(bar);
+}
+
+export function showResult(ctx){ // {win,title,line,share,onAgain,slimHost}
+  fillModal(ctx);
   overlay.classList.add("show");
   if(ctx.win){confetti();try{navigator.vibrate&&navigator.vibrate([35,60,35,60,90]);}catch(e){}}
-  // slim reopen bar under the game
-  if(ctx.slimHost){
-    ctx.slimHost.innerHTML="";
-    const bar=el(`<div class="slimbar ${ctx.win?"win":"fail"}"><span>${ctx.win?"🎉":"💥"} ${ctx.title}</span><button>Result</button></div>`);
-    bar.querySelector("button").onclick=()=>{overlay.classList.add("show");};
-    ctx.slimHost.appendChild(bar);
-  }
+  showSlimBar(ctx);
 }
 
 let helpov;

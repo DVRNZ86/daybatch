@@ -69,6 +69,21 @@ Port v13 into the structure above, behaviour-identical.
 - **Rollover watcher:** on `visibilitychange`/focus, compare stored puzzle date vs device-local today; if rolled over, prompt "New batch is ready 🌅" → fresh dailies (never silently reset a live game)
 **Accept:** reload restores all five games mid-play; finished game shows result bar on reload, not a fresh puzzle; rollover fires correctly across a simulated midnight (incl. NZ tz test); schema versioned with migration test.
 
+**B2 decisions (Darren, 11 Jul 2026):**
+- **Tier contract** — recorded per completion as `tier` 1–4 and used by B3 scoring (20/15/10/5):
+
+| Tier | Crossing | Sonar | Codebreak | Tally | Lexi |
+|---|---|---|---|---|---|
+| 1 top | Flawless (3❤️) | 7 pings | ≤2 guesses | par & 1st try ⛳ | 0 hints |
+| 2 | 2❤️ | ≤9 pings | ≤4 guesses | par, >1 try | ≤2 hints |
+| 3 | 1❤️ | ≤12 pings | ≤6 guesses | over par | 3+ hints |
+| 4 completed | fail | >12 pings | 7–8 or fail | — | — |
+
+- **Fail = completed (5 pts):** a played loss (Crossing blown up, Codebreak locked out) records tier 4, never 0.
+- Only daily games persist; practice rounds are ephemeral.
+- "Today's" resumes the persisted daily in progress (fresh load only if no snapshot) — persistence-era refinement of v13's reset behaviour.
+- First completion of a game+date stands in history; replays of a finished daily don't overwrite it.
+
 ### B3 — Streaks + Batch Report + unified share
 - **Batch Score /100:** per game — top tier 20 · second tier 15 · third tier 10 · completed 5 · unplayed 0
 - Streaks: batch streak (≥1 game/day) with 🔥 in header; perfect-batch tracked

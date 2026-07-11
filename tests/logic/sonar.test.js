@@ -76,3 +76,11 @@ test("fleet invariants hold across many seeds", () => {
     }
   }
 });
+
+test("tierFor maps pings to the PLAN.md B2 contract", async () => {
+  const { tierFor } = await import("../../src/games/sonar.js");
+  assert.equal(tierFor(7), 1);
+  assert.equal(tierFor(9), 2);
+  assert.equal(tierFor(12), 3);
+  assert.equal(tierFor(13), 4);
+});

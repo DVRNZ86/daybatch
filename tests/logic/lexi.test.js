@@ -55,3 +55,11 @@ test("puzzle invariants hold across many seeds", () => {
     assert.ok(p.targets.includes(p.seed), `seed word among targets (seed ${s})`);
   }
 });
+
+test("tierFor maps hints to the PLAN.md B2 contract", async () => {
+  const { tierFor } = await import("../../src/games/lexi.js");
+  assert.equal(tierFor(0), 1);
+  assert.equal(tierFor(2), 2);
+  assert.equal(tierFor(3), 3);
+  assert.equal(tierFor(9), 3);
+});

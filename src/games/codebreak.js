@@ -1,7 +1,8 @@
 // CODEBREAK — ported verbatim from v13 (reference/daybatch-v13.html).
 // gen() is exported for logic tests; initCodebreak() wires the DOM.
 import { mulberry32, dailySeed } from "../core/rng.js";
-import { showResult, showHelp } from "../core/ui.js";
+import { showResult, showHelp, showSlimBar } from "../core/ui.js";
+import { getGameState, setGameState, addHistory, localDateKey } from "../core/storage.js";
 
 const SYMS=[["tri","#E4572E"],["cir","#2E86FF"],["sq","#0FB360"],["dia","#8B5CF6"],["star","#F5A800"],["pen","#E5484D"],["plus","#0FA3A3"]];
 const LEN=5,MAXG=8;
@@ -22,25 +23,47 @@ function slotState(g,i){
 const BG={green:"var(--win)",amber:"var(--amber)",grey:"#CBD5E1"};
 const EMO={green:"🟩",amber:"🟨",grey:"⬜"};
 const CB_HELP=`Crack the hidden <b>5-shape code</b> — no shape repeats.<br><br>After each guess your shapes recolour to show the verdict:<br><b style="color:var(--win)">green</b> — right symbol, right slot<br><b style="color:var(--amber)">amber</b> — in the code, wrong slot<br><b>grey</b> — not in the code<br><br>The keyboard remembers what you've learned: eliminated shapes turn grey, confirmed ones get a coloured underline. You have <b>8 guesses</b>.`;
-function load(sd,daily){isDaily=daily;code=gen(sd);guesses=[];current=[];status="play";render();}
+let seed,dateCur;
+function load(sd,daily){seed=sd;isDaily=daily;dateCur=localDateKey();code=gen(sd);guesses=[];current=[];status="play";persist();render();}
+// B2 persistence: daily games snapshot on every mutation; practice is ephemeral.
+function persist(){
+  if(!isDaily)return;
+  setGameState("codebreak",{date:dateCur,seed,guesses,current,status});
+}
+// Tier per PLAN.md B2 contract: ≤2→1, ≤4→2, ≤6→3, 7–8 or fail→4 (completed).
+export function tierFor(st,g){return st!=="win"?4:g<=2?1:g<=4?2:g<=6?3:4;}
+function openDaily(){
+  const sd=dailySeed("codebreak");
+  const s=getGameState("codebreak");
+  if(s&&s.date===localDateKey()&&s.seed===sd){
+    seed=s.seed;isDaily=true;dateCur=s.date;code=gen(seed);guesses=s.guesses;current=s.current;status=s.status;render();
+    if(status!=="play")showSlimBar(result());
+    return;
+  }
+  load(sd,true);
+}
 function submit(){
   if(current.length!==LEN||status!=="play")return;
   guesses.push(current.slice());
   const solved=current.every((s,i)=>s===code[i]);
   current=[];
-  if(solved){status="win";render();finish();return;}
-  if(guesses.length>=MAXG){status="fail";render();finish();return;}
-  render();
+  if(solved){status="win";persist();render();finish();return;}
+  if(guesses.length>=MAXG){status="fail";persist();render();finish();return;}
+  persist();render();
 }
-function finish(){
+function result(){
   const g=guesses.length;
   const label=status!=="win"?"Locked out":g<=2?"Mastermind! 🧠":g<=4?"Cracked it!":g<=6?"Solid solve":"Close call!";
   const share="DAYBATCH · CODEBREAK 🔐 "+label+" "+(status==="win"?g:"X")+"/"+MAXG+"\n"+
     guesses.map(gu=>gu.map((_,i)=>EMO[slotState(gu,i)]).join("")).join("\n");
-  showResult({win:status==="win",title:label,
+  return{win:status==="win",title:label,
     line:status==="win"?"Solved in "+g+" of "+MAXG:"Out of guesses",
     share,onAgain:()=>load(Math.floor(Math.random()*1e9),false),
-    slimHost:pane.querySelector(".slimhost")});
+    slimHost:pane.querySelector(".slimhost")};
+}
+function finish(){
+  if(isDaily)addHistory({date:dateCur,game:"codebreak",tier:tierFor(status,guesses.length),metrics:{guesses:guesses.length,win:status==="win"}});
+  showResult(result());
 }
 function symbolKnown(si){
   let best=null;
@@ -99,19 +122,19 @@ function render(){
     </div>
     <div class="slimhost"></div>`;
   pane.querySelectorAll(".cb-keys button").forEach(b=>b.onclick=()=>{
-    if(current.length<LEN&&current.indexOf(+b.dataset.k)<0){current.push(+b.dataset.k);render();}
+    if(current.length<LEN&&current.indexOf(+b.dataset.k)<0){current.push(+b.dataset.k);persist();render();}
   });
   pane.querySelectorAll(".cb-slot.filled").forEach(s=>s.onclick=()=>{
-    current.splice(+s.dataset.slot,1);render();
+    current.splice(+s.dataset.slot,1);persist();render();
   });
-  const del=pane.querySelector("#cb-del");if(del)del.onclick=()=>{current.pop();render();};
+  const del=pane.querySelector("#cb-del");if(del)del.onclick=()=>{current.pop();persist();render();};
   const sub=pane.querySelector("#cb-sub");if(sub)sub.onclick=submit;
   pane.querySelector("#cb-help").onclick=()=>showHelp(CB_HELP);
   const rowsEl=pane.querySelector(".cb-rows");if(rowsEl)rowsEl.scrollTop=rowsEl.scrollHeight;
   pane.querySelector("#cb-new").onclick=()=>load(Math.floor(Math.random()*1e9),false);
-  pane.querySelector("#cb-today").onclick=()=>load(dailySeed("codebreak"),true);
+  pane.querySelector("#cb-today").onclick=()=>openDaily();
 }
 export function initCodebreak(){
   pane=document.getElementById("pane-codebreak");
-  load(dailySeed("codebreak"),true);
+  openDaily();
 }

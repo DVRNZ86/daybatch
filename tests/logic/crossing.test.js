@@ -54,3 +54,11 @@ test("invariants hold across many seeds", () => {
     assert.ok(reached, `safe path exists (seed ${s})`);
   }
 });
+
+test("tierFor maps lives to the PLAN.md B2 contract", async () => {
+  const { tierFor } = await import("../../src/games/crossing.js");
+  assert.equal(tierFor("win", 3), 1);
+  assert.equal(tierFor("win", 2), 2);
+  assert.equal(tierFor("win", 1), 3);
+  assert.equal(tierFor("fail", 0), 4); // fail = completed, 5 pts
+});

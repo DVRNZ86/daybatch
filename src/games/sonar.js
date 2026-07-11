@@ -1,7 +1,8 @@
 // SONAR — ported verbatim from v13 (reference/daybatch-v13.html).
 // gen() is exported for logic tests; initSonar() wires the DOM.
 import { mulberry32, dailySeed } from "../core/rng.js";
-import { showResult, showHelp } from "../core/ui.js";
+import { showResult, showHelp, showSlimBar } from "../core/ui.js";
+import { getGameState, setGameState, addHistory, localDateKey } from "../core/storage.js";
 
 const SN=7,SHIPS=[3,2,2];
 let pane;
@@ -49,21 +50,43 @@ export function gen(sd){
   return{occ,rowCounts,colCounts,total:7};
 }
 const SN_HELP=`Three vessels hide in the deep — the fleet shown above the grid (never touching, not even diagonally).<br><br>Every tap is a <b>ping</b>: <b>◉ orange</b> = part of a vessel, <b>· blue</b> = empty water.<br><br><b>Edge numbers</b> count how many vessel cells sit in that row or column — they turn <b>green ✓</b> once you've found them all. Use them to deduce, not guess.<br><br>Find every vessel cell in the fewest pings.`;
-function load(sd,daily){isDaily=daily;puz=gen(sd);revealed=new Map();status="play";render();}
+let seed,dateCur;
+function load(sd,daily){seed=sd;isDaily=daily;dateCur=localDateKey();puz=gen(sd);revealed=new Map();status="play";persist();render();}
 function hits(){let n=0;revealed.forEach(v=>{if(v==="hit")n++;});return n;}
+// B2 persistence: daily games snapshot on every mutation; practice is ephemeral.
+function persist(){
+  if(!isDaily)return;
+  setGameState("sonar",{date:dateCur,seed,revealed:[...revealed],status});
+}
+// Tier per PLAN.md B2 contract: 7 pings→1, ≤9→2, ≤12→3, else→4 (completed).
+export function tierFor(pings){return pings===7?1:pings<=9?2:pings<=12?3:4;}
+function openDaily(){
+  const sd=dailySeed("sonar");
+  const s=getGameState("sonar");
+  if(s&&s.date===localDateKey()&&s.seed===sd){
+    seed=s.seed;isDaily=true;dateCur=s.date;puz=gen(seed);revealed=new Map(s.revealed);status=s.status;render();
+    if(status!=="play")showSlimBar(result());
+    return;
+  }
+  load(sd,true);
+}
 function tap(i){
   if(status!=="play"||revealed.has(i))return;
   revealed.set(i,puz.occ.has(i)?"hit":"miss");
-  if(hits()===puz.total){status="win";render();finish();return;}
-  render();
+  if(hits()===puz.total){status="win";persist();render();finish();return;}
+  persist();render();
 }
-function finish(){
+function result(){
   const p=revealed.size;
   const label=p===puz.total?"Perfect! 🏆":p<=puz.total+2?"Sharp shooting!":p<=puz.total+5?"Solid sweep":"All found";
   const share="DAYBATCH · SONAR 📡 "+label+"\n"+p+" pings";
-  showResult({win:true,title:label,line:p+" pings",
+  return{win:true,title:label,line:p+" pings",
     share,onAgain:()=>load(Math.floor(Math.random()*1e9),false),
-    slimHost:pane.querySelector(".slimhost")});
+    slimHost:pane.querySelector(".slimhost")};
+}
+function finish(){
+  if(isDaily)addHistory({date:dateCur,game:"sonar",tier:tierFor(revealed.size),metrics:{pings:revealed.size,win:true}});
+  showResult(result());
 }
 function render(){
   const rowHits=Array(SN).fill(0),colHits=Array(SN).fill(0);
@@ -105,9 +128,9 @@ function render(){
   pane.querySelectorAll(".sn-row button").forEach(b=>b.onclick=()=>tap(+b.dataset.i));
   pane.querySelector("#sn-help").onclick=()=>showHelp(SN_HELP);
   pane.querySelector("#sn-new").onclick=()=>load(Math.floor(Math.random()*1e9),false);
-  pane.querySelector("#sn-today").onclick=()=>load(dailySeed("sonar"),true);
+  pane.querySelector("#sn-today").onclick=()=>openDaily();
 }
 export function initSonar(){
   pane=document.getElementById("pane-sonar");
-  load(dailySeed("sonar"),true);
+  openDaily();
 }
