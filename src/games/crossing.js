@@ -1,7 +1,8 @@
 // CROSSING — ported verbatim from v13 (reference/daybatch-v13.html).
 // gen() is exported for logic tests; initCrossing() wires the DOM.
 import { mulberry32, dailySeed } from "../core/rng.js";
-import { showResult, showHelp } from "../core/ui.js";
+import { showResult, showHelp, showSlimBar } from "../core/ui.js";
+import { getGameState, setGameState, addHistory, localDateKey } from "../core/storage.js";
 
 const ROWS=7,COLS=5;
 let pane;
@@ -76,7 +77,27 @@ function cascade(idx){
 }
 function load(sd,daily){
   seed=sd;isDaily=daily;puz=gen(sd);pos=null;seen=new Set();boomed=new Set();
-  lives=3;steps=0;status="play";render();
+  lives=3;steps=0;status="play";persist();render();
+}
+// B2 persistence: daily games snapshot on every mutation; practice is ephemeral.
+function persist(){
+  if(!isDaily)return;
+  setGameState("crossing",{date:localDateKey(),seed,pos,seen:[...seen],boomed:[...boomed],lives,steps,status});
+}
+// Tier per PLAN.md B2 contract: 3❤️→1, 2❤️→2, 1❤️→3, fail→4 (completed).
+export function tierFor(st,lv){return st!=="win"?4:lv===3?1:lv===2?2:3;}
+// Open today's daily: resume the snapshot when it matches today's puzzle,
+// otherwise load fresh. Finished dailies restore with the result bar, no modal.
+function openDaily(){
+  const sd=dailySeed("crossing");
+  const s=getGameState("crossing");
+  if(s&&s.date===localDateKey()&&s.seed===sd){
+    seed=s.seed;isDaily=true;puz=gen(seed);pos=s.pos;seen=new Set(s.seen);boomed=new Set(s.boomed);
+    lives=s.lives;steps=s.steps;status=s.status;render();
+    if(status!=="play")showSlimBar(result());
+    return;
+  }
+  load(sd,true);
 }
 function legal(i){
   if(status!=="play")return false;
@@ -89,22 +110,26 @@ function tap(i){
   steps++;
   if(puz.traps.has(i)){
     boomed.add(i);lives--;
-    if(lives<=0){status="fail";render();finish();return;}
-    render();return;
+    if(lives<=0){status="fail";persist();render();finish();return;}
+    persist();render();return;
   }
   cascade(i);pos=i;
-  if(Math.floor(i/COLS)===ROWS-1){status="win";render();finish();return;}
-  render();
+  if(Math.floor(i/COLS)===ROWS-1){status="win";persist();render();finish();return;}
+  persist();render();
 }
-function finish(){
+function result(){
   const label=status!=="win"?"Blown up 💥":lives===3?"Flawless crossing!":lives===2?"Made it!":"By a whisker!";
   const share=status==="win"
     ?"DAYBATCH · CROSSING 🧭 "+label+"\n"+steps+" steps · "+"❤️".repeat(lives)+"💥".repeat(3-lives)
     :"DAYBATCH · CROSSING 💥\nDidn't make it — "+steps+" steps";
-  showResult({win:status==="win",title:label,
+  return{win:status==="win",title:label,
     line:steps+" steps · "+"❤️".repeat(lives)+"💥".repeat(3-lives),share,
     onAgain:()=>load(Math.floor(Math.random()*1e9),false),
-    slimHost:pane.querySelector(".slimhost")});
+    slimHost:pane.querySelector(".slimhost")};
+}
+function finish(){
+  if(isDaily)addHistory({date:localDateKey(),game:"crossing",tier:tierFor(status,lives),metrics:{steps,lives,win:status==="win"}});
+  showResult(result());
 }
 function clueColor(n){return n===0?"var(--faded)":n===1?"var(--win)":n===2?"var(--amber)":"var(--bad)";}
 function render(){
@@ -139,9 +164,9 @@ function render(){
   pane.querySelector("#cr-help").onclick=()=>showHelp(CR_HELP);
   pane.querySelector("#cr-retry").onclick=()=>load(seed,isDaily);
   pane.querySelector("#cr-new").onclick=()=>load(Math.floor(Math.random()*1e9),false);
-  pane.querySelector("#cr-today").onclick=()=>load(dailySeed("crossing"),true);
+  pane.querySelector("#cr-today").onclick=()=>openDaily();
 }
 export function initCrossing(){
   pane=document.getElementById("pane-crossing");
-  load(dailySeed("crossing"),true);
+  openDaily();
 }
