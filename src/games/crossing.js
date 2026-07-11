@@ -156,14 +156,16 @@ function render(){
     </div>
     <div class="board"><div id="cr-grid">${cells}</div></div>
     <div class="btnrow">
-      <button class="btn" id="cr-retry">Retry</button>
+      ${isDaily?"":'<button class="btn" id="cr-retry">Retry</button>'}
       <button class="btn" id="cr-new">New puzzle</button>
       <button class="btn pri" id="cr-today">Today's</button>
     </div>
     <div class="slimhost"></div>`;
   pane.querySelectorAll("#cr-grid button").forEach(b=>b.onclick=()=>tap(+b.dataset.i));
   pane.querySelector("#cr-help").onclick=()=>showHelp(CR_HELP);
-  pane.querySelector("#cr-retry").onclick=()=>load(seed,isDaily);
+  // B3 decision (Darren, 11 Jul 2026): dailies are one continuous attempt —
+  // Retry only exists in practice. Mid-game retry made tiers farmable.
+  const retry=pane.querySelector("#cr-retry");if(retry)retry.onclick=()=>load(seed,isDaily);
   pane.querySelector("#cr-new").onclick=()=>load(Math.floor(Math.random()*1e9),false);
   pane.querySelector("#cr-today").onclick=()=>openDaily();
 }

@@ -246,3 +246,21 @@ test("Lexi: FOUND/HINTS counters survive a shuffle (B1.2 regression)", async ({ 
 
   expect(errors).toEqual([]);
 });
+
+// ------------------------------------------------ CROSSING RETRY (v0.B3) ----
+
+test("Crossing: Retry absent on dailies, present in practice (B3 decision)", async ({ page }) => {
+  const errors = trackErrors(page);
+  await openTab(page, "crossing");
+  await expect(page.locator("#cr-new")).toBeVisible();
+  await expect(page.locator("#cr-retry")).toHaveCount(0);   // daily: no Retry
+
+  await page.locator("#cr-new").click();                    // practice round
+  await expect(page.locator("#cr-retry")).toBeVisible();
+  await page.locator("#cr-retry").click();                  // practice retry still works
+  await expect(page.locator("#pane-crossing .stat:has(.lb:text('STEPS')) .vl")).toHaveText("0");
+
+  await page.locator("#cr-today").click();                  // back to daily: gone again
+  await expect(page.locator("#cr-retry")).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
