@@ -217,3 +217,15 @@
   @keyframes titlePulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.08)} }
   @keyframes wiggle { 0%,100%{transform:rotate(-12deg)} 50%{transform:rotate(14deg)} }
   @media (prefers-reduced-motion:reduce){ *{animation:none!important;transition:none!important;} }
+
+/* B2: day-rollover banner */
+#rollover {
+  display:flex; align-items:center; gap:10px; margin-bottom:8px;
+  background:var(--card); border:1.5px solid var(--amber); border-radius:12px;
+  padding:8px 12px; font-weight:600; font-size:13px;
+}
+#rollover span { flex:1; }
+#rollover button {
+  padding:8px 12px; border:none; border-radius:10px; background:var(--ink);
+  color:#fff; font-weight:600; font-family:inherit; font-size:13px; cursor:pointer;
+}
