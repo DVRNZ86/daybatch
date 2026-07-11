@@ -65,3 +65,17 @@ test("dailySeed rolls over at device-local midnight (Pacific/Auckland pin)", () 
     global.Date = RealDate;
   }
 });
+
+test("puzzleNumber: EPOCH day is #1, permanent arithmetic (B3 contract)", async () => {
+  const { puzzleNumber, EPOCH } = await import("../../src/core/rng.js");
+  assert.deepEqual(EPOCH, [2026, 6, 11]);
+  assert.equal(puzzleNumber(new Date(2026, 6, 11)), 1);   // epoch day
+  assert.equal(puzzleNumber(new Date(2026, 6, 12)), 2);
+  assert.equal(puzzleNumber(new Date(2026, 6, 11, 23, 59)), 1); // time of day irrelevant
+  assert.equal(puzzleNumber(new Date(2026, 7, 10)), 31);
+  assert.equal(puzzleNumber(new Date(2027, 6, 11)), 366);
+  // NZ DST boundaries (suite runs TZ=Pacific/Auckland): late Sept/early Apr
+  assert.equal(puzzleNumber(new Date(2026, 8, 27)) + 1, puzzleNumber(new Date(2026, 8, 28)), "DST start");
+  assert.equal(puzzleNumber(new Date(2027, 3, 4)) + 1, puzzleNumber(new Date(2027, 3, 5)), "DST end");
+  assert.equal(puzzleNumber(new Date(2026, 6, 10)), 0);   // pre-epoch guard value
+});
