@@ -116,3 +116,48 @@ test("Crossing: finished daily restores as result bar, not a fresh puzzle or mod
   ]);
   expect(errors).toEqual([]);
 });
+
+// ---------------------------------------------------------------- SONAR ----
+
+test("Sonar: mid-game pings survive a reload; perfect finish restores as bar", async ({ page }) => {
+  const errors = trackErrors(page);
+  await pinDate(page);
+  const { gen: genSonar } = await import("../../src/games/sonar.js");
+  const ships = [...genSonar(hashString("sonar-" + DATE_KEY)).occ];
+
+  await page.goto("/");
+  await openTab(page, "sonar");
+
+  // three pings mid-game (two ship cells + one guaranteed miss)
+  const miss = [...Array(49).keys()].find(i => !ships.includes(i));
+  for (const i of [ships[0], ships[1], miss]) {
+    await page.locator(`.sn-row button[data-i="${i}"]`).click();
+  }
+  await expect(page.locator("#pane-sonar .stat:has(.lb:text('PINGS')) .vl")).toHaveText("3");
+  const before = norm(await page.locator("#pane-sonar .board").innerHTML());
+
+  await page.reload();
+  await openTab(page, "sonar");
+  await expect(page.locator("#pane-sonar .stat:has(.lb:text('PINGS')) .vl")).toHaveText("3");
+  expect(norm(await page.locator("#pane-sonar .board").innerHTML())).toEqual(before);
+
+  // finish perfectly: ping the remaining ship cells only
+  for (const i of ships.slice(2)) {
+    await page.locator(`.sn-row button[data-i="${i}"]`).click();
+  }
+  // 2 ship pings + 1 miss + 5 ship pings = 8 pings → "Sharp shooting!", tier 2
+  await expect(page.locator("#overlay.show")).toBeVisible();
+  await page.locator("#m-close").click();
+
+  await page.reload();
+  await openTab(page, "sonar");
+  await expect(page.locator("#overlay.show")).toHaveCount(0);
+  await expect(page.locator("#pane-sonar .slimbar.win")).toBeVisible();
+  await expect(page.locator("#pane-sonar .slimbar span")).toContainText("Sharp");
+
+  const h = await readHistory(page);
+  expect(h.filter(r => r.game === "sonar")).toEqual([
+    { date: DATE_KEY, game: "sonar", tier: 2, metrics: { pings: 8, win: true } }
+  ]);
+  expect(errors).toEqual([]);
+});
