@@ -51,3 +51,10 @@ test("grid layout and solvability invariants hold across seeds", () => {
     assert.ok(p.target > 0, `target positive (seed ${s})`);
   }
 });
+
+test("tierFor maps moves/par/attempts to the PLAN.md B2 contract", async () => {
+  const { tierFor } = await import("../../src/games/tally.js");
+  assert.equal(tierFor(9, 9, 1), 1);  // par, first try
+  assert.equal(tierFor(9, 9, 3), 2);  // par, later try
+  assert.equal(tierFor(11, 9, 1), 3); // over par
+});

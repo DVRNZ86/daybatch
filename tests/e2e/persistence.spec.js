@@ -207,3 +207,69 @@ test("Codebreak: guesses and partial input survive reload; solve restores as bar
   ]);
   expect(errors).toEqual([]);
 });
+
+// ---------------------------------------------------------------- TALLY ----
+
+// Find a winning path of exactly par length for the pinned day's puzzle.
+async function tallyParPath() {
+  const { gen, neighbors, applyOp } = await import("../../src/games/tally.js");
+  const puz = gen(hashString("tally-" + DATE_KEY));
+  const target = puz.target, par = puz.par, cells = puz.cells;
+  const visited = new Array(25).fill(false);
+  visited[0] = true;
+  function dfs(pos, path, total, pending) {
+    if (pos === 24) return total === target && path.length === par ? path.slice() : null;
+    if (path.length >= par) return null;
+    for (const nb of neighbors(pos)) {
+      if (visited[nb]) continue;
+      visited[nb] = true;
+      path.push(nb);
+      const cell = cells[nb];
+      const hit = cell.type === "op"
+        ? dfs(nb, path, total, cell.value)
+        : dfs(nb, path, applyOp(total, pending, cell.value), null);
+      path.pop();
+      visited[nb] = false;
+      if (hit) return hit;
+    }
+    return null;
+  }
+  return { path: dfs(0, [0], cells[0].value, null), puz };
+}
+
+test("Tally: mid-game path survives reload; par win restores as bar", async ({ page }) => {
+  const errors = trackErrors(page);
+  await pinDate(page);
+  const { path } = await tallyParPath();
+  expect(path).not.toBeNull();
+
+  await page.goto("/");
+  await openTab(page, "tally");
+
+  // tap the first two cells after START, then reload mid-draw
+  for (const i of path.slice(1, 3)) await page.locator(`#ty-grid .tc[data-i="${i}"]`).click();
+  const runningBefore = await page.locator("#ty-total").textContent();
+  await page.reload();
+  await openTab(page, "tally");
+  await expect(page.locator("#ty-total")).toHaveText(runningBefore);
+  expect(await page.locator("#ty-grid .tc.on").count()).toBe(3);
+
+  // finish along the par path (remaining cells), first attempt → Perfect ⛳, tier 1
+  for (const i of path.slice(3)) await page.locator(`#ty-grid .tc[data-i="${i}"]`).click();
+  await expect(page.locator("#overlay.show")).toBeVisible();
+  await page.locator("#m-close").click();
+
+  await page.reload();
+  await openTab(page, "tally");
+  await expect(page.locator("#overlay.show")).toHaveCount(0);
+  await expect(page.locator("#pane-tally .slimbar.win")).toBeVisible();
+  await expect(page.locator("#pane-tally .slimbar span")).toContainText("Perfect");
+  await expect(page.locator("#ty-tries")).toHaveText("1");
+
+  const h = await readHistory(page);
+  const { puz } = await tallyParPath();
+  expect(h.filter(r => r.game === "tally")).toEqual([
+    { date: DATE_KEY, game: "tally", tier: 1, metrics: { moves: puz.par, par: puz.par, attempts: 1, win: true } }
+  ]);
+  expect(errors).toEqual([]);
+});

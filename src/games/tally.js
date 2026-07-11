@@ -2,11 +2,12 @@
 // Pure helpers (neighbors/applyOp/solveGrid/gen) are exported for logic
 // tests; initTally() wires the DOM.
 import { mulberry32, dailySeed } from "../core/rng.js";
-import { showResult, showHelp } from "../core/ui.js";
+import { showResult, showHelp, showSlimBar } from "../core/ui.js";
+import { getGameState, setGameState, addHistory, localDateKey } from "../core/storage.js";
 
 const SIZE=5,N=25,START=0,END=24;
 let pane;
-let puz,path,attempts,status,isDaily,dragging=false;
+let puz,path,attempts,status,isDaily,dragging=false,seedCur;
 let elGrid,elTotal,elTries,boardEl;
 
 export function neighbors(i){
@@ -72,10 +73,30 @@ function evalPath(){
 }
 const TY_HELP=`<b>Drag a path</b> from START to END through numbers and operators. Your total runs left to right as you draw — land on END with <b>exactly the target</b>.<br><br><b>BEST</b> is the shortest possible winning path — match it for a perfect ⛳.<br><br>Retrace your line to undo. You can also tap an adjacent cell to extend. Unlimited tries, but they're counted.`;
 function load(seed,daily){
-  isDaily=daily;
+  isDaily=daily;seedCur=seed;
   puz=gen(seed);
   if(!puz){puz=gen(Math.floor(Math.random()*1e9));}
   path=[START];attempts=0;status="play";buildDOM();
+}
+// B2 persistence: daily games snapshot on every mutation; practice is ephemeral.
+function persist(){
+  if(!isDaily)return;
+  setGameState("tally",{date:localDateKey(),seed:seedCur,path,attempts,status});
+}
+// Tier per PLAN.md B2 contract: par on 1st try→1, par→2, over par→3.
+export function tierFor(moves,par,att){return moves<=par&&att===1?1:moves<=par?2:3;}
+function openDaily(){
+  const sd=dailySeed("tally");
+  const s=getGameState("tally");
+  if(s&&s.date===localDateKey()&&s.seed===sd){
+    isDaily=true;seedCur=s.seed;puz=gen(s.seed);
+    path=s.path;attempts=s.attempts;status=s.status;
+    buildDOM();
+    elTries.textContent=attempts;
+    if(status!=="play")showSlimBar(result());
+    return;
+  }
+  load(sd,true);
 }
 function buildDOM(){
   let cells="";
@@ -114,7 +135,7 @@ function buildDOM(){
   pane.querySelector("#ty-help").onclick=()=>showHelp(TY_HELP);
   pane.querySelector("#ty-clear").onclick=()=>{path=[START];updatePath();};
   pane.querySelector("#ty-new").onclick=()=>load(Math.floor(Math.random()*1e9),false);
-  pane.querySelector("#ty-today").onclick=()=>load(dailySeed("tally"),true);
+  pane.querySelector("#ty-today").onclick=()=>openDaily();
   boardEl.addEventListener("touchmove",e=>e.preventDefault(),{passive:false});
   boardEl.addEventListener("pointerdown",onDown);
   boardEl.addEventListener("pointermove",onMove);
@@ -162,8 +183,8 @@ function onUp(){
   if(path[path.length-1]===END){
     attempts++;elTries.textContent=attempts;
     const t=evalPath().total;
-    if(t===puz.target){status="win";updatePath();finish();}
-    else{boardEl.classList.remove("shakeX");void boardEl.offsetWidth;boardEl.classList.add("shakeX");}
+    if(t===puz.target){status="win";persist();updatePath();finish();}
+    else{persist();boardEl.classList.remove("shakeX");void boardEl.offsetWidth;boardEl.classList.add("shakeX");}
   }
 }
 function centre(i){
@@ -171,6 +192,7 @@ function centre(i){
   return[c*p+p/2,r*p+p/2];
 }
 function updatePath(){
+  persist();
   elGrid.querySelectorAll(".tc").forEach(d=>d.classList.toggle("on",path.indexOf(+d.dataset.i)>=0));
   const pts=path.map(i=>centre(i).join(",")).join(" ");
   pane.querySelector("#ty-line").setAttribute("points",path.length>1?pts:"");
@@ -186,16 +208,20 @@ function updatePath(){
     tipEl.setAttribute("fill","var(--win)");
   }
 }
-function finish(){
+function result(){
   const moves=path.length;
   const label=moves<=puz.par&&attempts===1?"Perfect! ⛳":moves<=puz.par?"Best path! ⛳":"Solved!";
   const share="DAYBATCH · TALLY 🧮 "+label+" 🎯 "+puz.target+"\nPath "+moves+" · Best "+puz.par+(moves<=puz.par?" ⛳":" (+"+(moves-puz.par)+")")+"\nTries: "+attempts;
-  showResult({win:true,title:label,
+  return{win:true,title:label,
     line:"Path "+moves+" · Best "+puz.par+" · Tries "+attempts,share,
     onAgain:()=>load(Math.floor(Math.random()*1e9),false),
-    slimHost:pane.querySelector(".slimhost")});
+    slimHost:pane.querySelector(".slimhost")};
+}
+function finish(){
+  if(isDaily)addHistory({date:localDateKey(),game:"tally",tier:tierFor(path.length,puz.par,attempts),metrics:{moves:path.length,par:puz.par,attempts,win:true}});
+  showResult(result());
 }
 export function initTally(){
   pane=document.getElementById("pane-tally");
-  load(dailySeed("tally"),true);
+  openDaily();
 }
