@@ -99,7 +99,7 @@ DAYBATCH #14 · 85/100 🔥7
 https://daybatch.app
 ```
 (unplayed games show `— not played`; per-game share cards remain, gaining the same link footer line)
-- **Link footer (Darren, 11 Jul 2026): the address must arrive as a tappable link, not plain decoration.** Footer line is the full URL `https://daybatch.app` (the scheme makes receiving apps auto-link it reliably); when sharing via the Web Share API, also pass `url: "https://daybatch.app"` so share targets render a proper link preview. Applies to the unified card and every per-game card.
+- **Link footer (Darren, 11 Jul 2026): the address must arrive as a tappable link, not plain decoration.** Footer line is the full URL `https://daybatch.app` (the scheme makes receiving apps auto-link it reliably); when sharing via the Web Share API, also pass `url: "https://daybatch.app"` so share targets render a proper link preview. Applies to the unified card and every per-game card. *(v0.B3.2 refinement, from Darren's phone test: share targets concatenate text+url, doubling the link — on the WebShare path the footer is stripped from the text and the `url` field alone carries it; the clipboard path keeps the footer line.)*
 **Accept:** score math unit-tested for all tier combos; streak math tested across date boundaries incl. Pacific/Auckland; share card renders, copies, and Web-Shares on mobile with the tappable link footer; EPOCH constant set and documented.
 
 **B3 decisions (Darren, 11 Jul 2026):**

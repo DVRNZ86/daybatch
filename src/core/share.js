@@ -63,10 +63,15 @@ export function batchCard(history, dateKey) {
 
 // Web Share with url field (B3 link-footer decision) when available,
 // clipboard otherwise. Returns "shared" | "copied" | "failed" for button UX.
+// v0.B3.2: share targets concatenate text + url, so the footer line is
+// stripped from the text on the WebShare path — the url field alone carries
+// the link there. The clipboard path keeps the footer (it is the only link).
 export async function shareText(text) {
   try {
     if (typeof navigator !== "undefined" && navigator.share) {
-      await navigator.share({ text, url: SITE_URL });
+      const footer = "\n" + SITE_URL;
+      const body = text.endsWith(footer) ? text.slice(0, -footer.length) : text;
+      await navigator.share({ text: body, url: SITE_URL });
       return "shared";
     }
     await navigator.clipboard.writeText(text);
