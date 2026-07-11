@@ -106,3 +106,16 @@ test("shareText prefers Web Share with the url field, falls back to clipboard", 
   setNav({ share: async () => { throw new Error("dismissed"); } });
   assert.equal(await shareText("CARD"), "failed");
 });
+
+test("shareText strips the text footer on the WebShare path (v0.B3.2 dedup)", async () => {
+  const setNav = v => Object.defineProperty(globalThis, "navigator", { value: v, configurable: true });
+  const calls = [];
+  setNav({ share: async p => calls.push(p) });
+  assert.equal(await shareText("CARD BODY\n" + SITE_URL), "shared");
+  assert.deepEqual(calls, [{ text: "CARD BODY", url: SITE_URL }]); // link once, via url
+
+  const copied = [];
+  setNav({ clipboard: { writeText: async t => copied.push(t) } });
+  await shareText("CARD BODY\n" + SITE_URL);
+  assert.deepEqual(copied, ["CARD BODY\n" + SITE_URL]); // clipboard keeps the footer
+});

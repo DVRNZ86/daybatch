@@ -96,6 +96,7 @@ test("Web Share receives the card text plus the url field", async ({ page }) => 
   expect(payloads).toHaveLength(1);
   expect(payloads[0].url).toBe(SITE_URL);
   expect(payloads[0].text.startsWith("DAYBATCH #5 · 20/100")).toBe(true);
+  expect(payloads[0].text).not.toContain(SITE_URL); // v0.B3.2: link only in url, never doubled
   expect(errors).toEqual([]);
 });
 
