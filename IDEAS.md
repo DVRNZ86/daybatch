@@ -9,6 +9,15 @@ New ideas land here with a one-line rationale. Nothing exits mid-phase; entries 
 
 ## Filed during Stage B
 
+- **App write-up / taglines (decide later — keep all potentials).** Candidate homes: README, B4 manifest `description`, B5 onboarding, socials. (Filed 11 Jul 2026.)
+  - Tagline: "DAYBATCH — your fresh batch of daily puzzles."
+  - Alt: "Five puzzles, baked fresh daily."
+  - Alt: "One batch a day. Five ways to play."
+  - Alt: "A fresh batch of brain games, every midnight."
+  - Store-length: "DAYBATCH serves up a fresh batch of five bite-size puzzles every day: trace a number path in Tally, dodge hidden traps in Crossing, hunt the fleet in Sonar, crack the code in Codebreak, and spin words from six letters in Lexi. Everyone gets the same batch — play your way through in a few minutes, stack up your streak, and share your score. Come back tomorrow: a new batch is ready 🌅"
+  - Meta/bio (~150 chars): "Five bite-size daily puzzles — logic, words, and deduction in one fresh batch. Same puzzles for everyone, new batch at midnight. daybatch.app"
+  - Notes: "bite-size" sets time expectation; "same batch for everyone" is the social hook; "a new batch is ready 🌅" matches the in-app rollover banner and B5's planned onboarding line.
+
 - **UI modernisation pass (B5 candidate)** — depth via layered shadows, springy tap micro-interactions, actually load Space Grotesk/IBM Plex Mono (CSS names them but never loads them), dark mode, richer tab chips. Rationale: current look is v13-faithful by contract; a deliberate polish pass fits B5's scope. (Filed 11 Jul 2026 from Darren's feedback.)
 - **Crossing difficulty tuning** — on ~13% of seeds (measured over 2,000) the first tap's zero-cascade reveals a safe corridor to the flag, making the round a deduction-free walk; on other days it plays as intended. Levers: cap cascade reach, bias trap layout so the goal row stays hidden, tune the 34% trap density. Changes generation → breaks same-date-same-puzzle, so it needs its own approved phase and a fresh seed contract. (Filed 11 Jul 2026 from Darren's playtest.)
 - **Crossing Retry erases the daily attempt** — Retry mid-game wipes progress with no trace, and after a finish it clears the result bar so the first attempt can't be re-shared from the board (the history record itself survives — first completion stands — but no UI surfaces it until B5's stats screen). Options: remove Retry for dailies (keep for practice), or lock the first attempt's result as the shareable one and treat retries as unscored replays. Needs a decision on daily-replay semantics. (Filed 11 Jul 2026 from Darren's playtest.)
