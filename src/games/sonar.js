@@ -50,13 +50,13 @@ export function gen(sd){
   return{occ,rowCounts,colCounts,total:7};
 }
 const SN_HELP=`Three vessels hide in the deep — the fleet shown above the grid (never touching, not even diagonally).<br><br>Every tap is a <b>ping</b>: <b>◉ orange</b> = part of a vessel, <b>· blue</b> = empty water.<br><br><b>Edge numbers</b> count how many vessel cells sit in that row or column — they turn <b>green ✓</b> once you've found them all. Use them to deduce, not guess.<br><br>Find every vessel cell in the fewest pings.`;
-let seed;
-function load(sd,daily){seed=sd;isDaily=daily;puz=gen(sd);revealed=new Map();status="play";persist();render();}
+let seed,dateCur;
+function load(sd,daily){seed=sd;isDaily=daily;dateCur=localDateKey();puz=gen(sd);revealed=new Map();status="play";persist();render();}
 function hits(){let n=0;revealed.forEach(v=>{if(v==="hit")n++;});return n;}
 // B2 persistence: daily games snapshot on every mutation; practice is ephemeral.
 function persist(){
   if(!isDaily)return;
-  setGameState("sonar",{date:localDateKey(),seed,revealed:[...revealed],status});
+  setGameState("sonar",{date:dateCur,seed,revealed:[...revealed],status});
 }
 // Tier per PLAN.md B2 contract: 7 pings→1, ≤9→2, ≤12→3, else→4 (completed).
 export function tierFor(pings){return pings===7?1:pings<=9?2:pings<=12?3:4;}
@@ -64,7 +64,7 @@ function openDaily(){
   const sd=dailySeed("sonar");
   const s=getGameState("sonar");
   if(s&&s.date===localDateKey()&&s.seed===sd){
-    seed=s.seed;isDaily=true;puz=gen(seed);revealed=new Map(s.revealed);status=s.status;render();
+    seed=s.seed;isDaily=true;dateCur=s.date;puz=gen(seed);revealed=new Map(s.revealed);status=s.status;render();
     if(status!=="play")showSlimBar(result());
     return;
   }
@@ -85,7 +85,7 @@ function result(){
     slimHost:pane.querySelector(".slimhost")};
 }
 function finish(){
-  if(isDaily)addHistory({date:localDateKey(),game:"sonar",tier:tierFor(revealed.size),metrics:{pings:revealed.size,win:true}});
+  if(isDaily)addHistory({date:dateCur,game:"sonar",tier:tierFor(revealed.size),metrics:{pings:revealed.size,win:true}});
   showResult(result());
 }
 function render(){

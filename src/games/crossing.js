@@ -6,7 +6,7 @@ import { getGameState, setGameState, addHistory, localDateKey } from "../core/st
 
 const ROWS=7,COLS=5;
 let pane;
-let puz,pos,seen,boomed,lives,steps,status,seed,isDaily;
+let puz,pos,seen,boomed,lives,steps,status,seed,isDaily,dateCur;
 
 export function gen(sd){
   const rng=mulberry32(sd);
@@ -76,13 +76,13 @@ function cascade(idx){
   }
 }
 function load(sd,daily){
-  seed=sd;isDaily=daily;puz=gen(sd);pos=null;seen=new Set();boomed=new Set();
+  seed=sd;isDaily=daily;dateCur=localDateKey();puz=gen(sd);pos=null;seen=new Set();boomed=new Set();
   lives=3;steps=0;status="play";persist();render();
 }
 // B2 persistence: daily games snapshot on every mutation; practice is ephemeral.
 function persist(){
   if(!isDaily)return;
-  setGameState("crossing",{date:localDateKey(),seed,pos,seen:[...seen],boomed:[...boomed],lives,steps,status});
+  setGameState("crossing",{date:dateCur,seed,pos,seen:[...seen],boomed:[...boomed],lives,steps,status});
 }
 // Tier per PLAN.md B2 contract: 3❤️→1, 2❤️→2, 1❤️→3, fail→4 (completed).
 export function tierFor(st,lv){return st!=="win"?4:lv===3?1:lv===2?2:3;}
@@ -92,7 +92,7 @@ function openDaily(){
   const sd=dailySeed("crossing");
   const s=getGameState("crossing");
   if(s&&s.date===localDateKey()&&s.seed===sd){
-    seed=s.seed;isDaily=true;puz=gen(seed);pos=s.pos;seen=new Set(s.seen);boomed=new Set(s.boomed);
+    seed=s.seed;isDaily=true;dateCur=s.date;puz=gen(seed);pos=s.pos;seen=new Set(s.seen);boomed=new Set(s.boomed);
     lives=s.lives;steps=s.steps;status=s.status;render();
     if(status!=="play")showSlimBar(result());
     return;
@@ -128,7 +128,7 @@ function result(){
     slimHost:pane.querySelector(".slimhost")};
 }
 function finish(){
-  if(isDaily)addHistory({date:localDateKey(),game:"crossing",tier:tierFor(status,lives),metrics:{steps,lives,win:status==="win"}});
+  if(isDaily)addHistory({date:dateCur,game:"crossing",tier:tierFor(status,lives),metrics:{steps,lives,win:status==="win"}});
   showResult(result());
 }
 function clueColor(n){return n===0?"var(--faded)":n===1?"var(--win)":n===2?"var(--amber)":"var(--bad)";}

@@ -7,7 +7,7 @@ import { getGameState, setGameState, addHistory, localDateKey } from "../core/st
 
 const SIZE=5,N=25,START=0,END=24;
 let pane;
-let puz,path,attempts,status,isDaily,dragging=false,seedCur;
+let puz,path,attempts,status,isDaily,dragging=false,seedCur,dateCur;
 let elGrid,elTotal,elTries,boardEl;
 
 export function neighbors(i){
@@ -73,7 +73,7 @@ function evalPath(){
 }
 const TY_HELP=`<b>Drag a path</b> from START to END through numbers and operators. Your total runs left to right as you draw — land on END with <b>exactly the target</b>.<br><br><b>BEST</b> is the shortest possible winning path — match it for a perfect ⛳.<br><br>Retrace your line to undo. You can also tap an adjacent cell to extend. Unlimited tries, but they're counted.`;
 function load(seed,daily){
-  isDaily=daily;seedCur=seed;
+  isDaily=daily;seedCur=seed;dateCur=localDateKey();
   puz=gen(seed);
   if(!puz){puz=gen(Math.floor(Math.random()*1e9));}
   path=[START];attempts=0;status="play";buildDOM();
@@ -81,7 +81,7 @@ function load(seed,daily){
 // B2 persistence: daily games snapshot on every mutation; practice is ephemeral.
 function persist(){
   if(!isDaily)return;
-  setGameState("tally",{date:localDateKey(),seed:seedCur,path,attempts,status});
+  setGameState("tally",{date:dateCur,seed:seedCur,path,attempts,status});
 }
 // Tier per PLAN.md B2 contract: par on 1st try→1, par→2, over par→3.
 export function tierFor(moves,par,att){return moves<=par&&att===1?1:moves<=par?2:3;}
@@ -89,7 +89,7 @@ function openDaily(){
   const sd=dailySeed("tally");
   const s=getGameState("tally");
   if(s&&s.date===localDateKey()&&s.seed===sd){
-    isDaily=true;seedCur=s.seed;puz=gen(s.seed);
+    isDaily=true;seedCur=s.seed;dateCur=s.date;puz=gen(s.seed);
     path=s.path;attempts=s.attempts;status=s.status;
     buildDOM();
     elTries.textContent=attempts;
@@ -218,7 +218,7 @@ function result(){
     slimHost:pane.querySelector(".slimhost")};
 }
 function finish(){
-  if(isDaily)addHistory({date:localDateKey(),game:"tally",tier:tierFor(path.length,puz.par,attempts),metrics:{moves:path.length,par:puz.par,attempts,win:true}});
+  if(isDaily)addHistory({date:dateCur,game:"tally",tier:tierFor(path.length,puz.par,attempts),metrics:{moves:path.length,par:puz.par,attempts,win:true}});
   showResult(result());
 }
 export function initTally(){

@@ -23,12 +23,12 @@ function slotState(g,i){
 const BG={green:"var(--win)",amber:"var(--amber)",grey:"#CBD5E1"};
 const EMO={green:"🟩",amber:"🟨",grey:"⬜"};
 const CB_HELP=`Crack the hidden <b>5-shape code</b> — no shape repeats.<br><br>After each guess your shapes recolour to show the verdict:<br><b style="color:var(--win)">green</b> — right symbol, right slot<br><b style="color:var(--amber)">amber</b> — in the code, wrong slot<br><b>grey</b> — not in the code<br><br>The keyboard remembers what you've learned: eliminated shapes turn grey, confirmed ones get a coloured underline. You have <b>8 guesses</b>.`;
-let seed;
-function load(sd,daily){seed=sd;isDaily=daily;code=gen(sd);guesses=[];current=[];status="play";persist();render();}
+let seed,dateCur;
+function load(sd,daily){seed=sd;isDaily=daily;dateCur=localDateKey();code=gen(sd);guesses=[];current=[];status="play";persist();render();}
 // B2 persistence: daily games snapshot on every mutation; practice is ephemeral.
 function persist(){
   if(!isDaily)return;
-  setGameState("codebreak",{date:localDateKey(),seed,guesses,current,status});
+  setGameState("codebreak",{date:dateCur,seed,guesses,current,status});
 }
 // Tier per PLAN.md B2 contract: ≤2→1, ≤4→2, ≤6→3, 7–8 or fail→4 (completed).
 export function tierFor(st,g){return st!=="win"?4:g<=2?1:g<=4?2:g<=6?3:4;}
@@ -36,7 +36,7 @@ function openDaily(){
   const sd=dailySeed("codebreak");
   const s=getGameState("codebreak");
   if(s&&s.date===localDateKey()&&s.seed===sd){
-    seed=s.seed;isDaily=true;code=gen(seed);guesses=s.guesses;current=s.current;status=s.status;render();
+    seed=s.seed;isDaily=true;dateCur=s.date;code=gen(seed);guesses=s.guesses;current=s.current;status=s.status;render();
     if(status!=="play")showSlimBar(result());
     return;
   }
@@ -62,7 +62,7 @@ function result(){
     slimHost:pane.querySelector(".slimhost")};
 }
 function finish(){
-  if(isDaily)addHistory({date:localDateKey(),game:"codebreak",tier:tierFor(status,guesses.length),metrics:{guesses:guesses.length,win:status==="win"}});
+  if(isDaily)addHistory({date:dateCur,game:"codebreak",tier:tierFor(status,guesses.length),metrics:{guesses:guesses.length,win:status==="win"}});
   showResult(result());
 }
 function symbolKnown(si){

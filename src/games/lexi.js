@@ -11,7 +11,7 @@ export function counts(w){const c={};for(const ch of w)c[ch]=(c[ch]||0)+1;return
 export function canForm(word,base){const b=Object.assign({},base);for(const ch of word){if(!b[ch])return false;b[ch]--;}return true;}
 
 let pane;
-let puz,found,hinted,hints,status,isDaily,seq,dragging=false,moved=false,seedCur;
+let puz,found,hinted,hints,status,isDaily,seq,dragging=false,moved=false,seedCur,dateCur;
 let letterEls,elPrev,wheelEl,centers;
 
 export function gen(sd){
@@ -32,7 +32,7 @@ export function gen(sd){
   return null;
 }
 function load(sd,daily){
-  isDaily=daily;seedCur=sd;puz=gen(sd);
+  isDaily=daily;seedCur=sd;dateCur=localDateKey();puz=gen(sd);
   if(!puz)puz=gen((sd+99991)>>>0);
   found=new Set();hinted=new Set();hints=0;status="play";seq=[];
   build();persist();
@@ -41,7 +41,7 @@ function load(sd,daily){
 // practice is ephemeral.
 function persist(){
   if(!isDaily)return;
-  setGameState("lexi",{date:localDateKey(),seed:seedCur,letters:puz.letters,found:[...found],hinted:[...hinted],hints,status});
+  setGameState("lexi",{date:dateCur,seed:seedCur,letters:puz.letters,found:[...found],hinted:[...hinted],hints,status});
 }
 // Tier per PLAN.md B2 contract: 0 hints→1, ≤2→2, 3+→3.
 export function tierFor(h){return h===0?1:h<=2?2:3;}
@@ -49,7 +49,7 @@ function openDaily(){
   const sd=dailySeed("lexi");
   const s=getGameState("lexi");
   if(s&&s.date===localDateKey()&&s.seed===sd){
-    isDaily=true;seedCur=s.seed;puz=gen(s.seed);
+    isDaily=true;seedCur=s.seed;dateCur=s.date;puz=gen(s.seed);
     if(!puz)puz=gen((s.seed+99991)>>>0);
     puz.letters=s.letters;
     found=new Set(s.found);hinted=new Set(s.hinted);hints=s.hints;status=s.status;seq=[];
@@ -220,7 +220,7 @@ function result(){
     slimHost:pane.querySelector(".slimhost")};
 }
 function finish(){
-  if(isDaily)addHistory({date:localDateKey(),game:"lexi",tier:tierFor(hints),metrics:{words:puz.targets.length,hints,win:true}});
+  if(isDaily)addHistory({date:dateCur,game:"lexi",tier:tierFor(hints),metrics:{words:puz.targets.length,hints,win:true}});
   showResult(result());
 }
 const LX_HELP=`<b>Swipe through the letters</b> and release to submit — or <b>tap letters one by one</b> and press ✓ Check. Every word uses each wheel letter at most once.<br><br>Fill every slot above the wheel — all target words are <b>common English words</b> of 3+ letters made from today's six letters.<br><br><b>🔀 Shuffle</b> rearranges the wheel when you're stuck — it often shakes a word loose. <b>💡 Hint</b> reveals a whole word, but hints count against your rank.<br><br>Retrace your swipe to undo a letter.`;
