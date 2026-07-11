@@ -20,3 +20,12 @@ test("code is always 5 distinct symbols from the 7 available", () => {
     for (const sym of code) assert.ok(sym >= 0 && sym <= 6, `symbol range (seed ${s})`);
   }
 });
+
+test("tierFor maps guesses to the PLAN.md B2 contract", async () => {
+  const { tierFor } = await import("../../src/games/codebreak.js");
+  assert.equal(tierFor("win", 2), 1);
+  assert.equal(tierFor("win", 4), 2);
+  assert.equal(tierFor("win", 6), 3);
+  assert.equal(tierFor("win", 8), 4);  // won late = completed
+  assert.equal(tierFor("fail", 8), 4); // fail = completed, 5 pts
+});

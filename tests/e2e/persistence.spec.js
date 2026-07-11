@@ -161,3 +161,49 @@ test("Sonar: mid-game pings survive a reload; perfect finish restores as bar", a
   ]);
   expect(errors).toEqual([]);
 });
+
+// ------------------------------------------------------------ CODEBREAK ----
+
+test("Codebreak: guesses and partial input survive reload; solve restores as bar", async ({ page }) => {
+  const errors = trackErrors(page);
+  await pinDate(page);
+  const { gen: genCode } = await import("../../src/games/codebreak.js");
+  const code = genCode(hashString("codebreak-" + DATE_KEY));
+  const wrong = [...Array(7).keys()].filter(k => k !== code[0]).slice(0, 5); // valid non-winning guess
+
+  await page.goto("/");
+  await openTab(page, "codebreak");
+
+  // one full wrong guess + two keys of partial input
+  for (const k of wrong) await page.locator(`.cb-keys button[data-k="${k}"]`).click();
+  await page.locator("#cb-sub").click();
+  for (const k of code.slice(0, 2)) await page.locator(`.cb-keys button[data-k="${k}"]`).click();
+  await expect(page.locator("#pane-codebreak .stat:has(.lb:text('GUESSES')) .vl")).toHaveText("1/8");
+  const before = norm(await page.locator("#pane-codebreak .board").innerHTML());
+
+  await page.reload();
+  await openTab(page, "codebreak");
+  await expect(page.locator("#pane-codebreak .stat:has(.lb:text('GUESSES')) .vl")).toHaveText("1/8");
+  expect(norm(await page.locator("#pane-codebreak .board").innerHTML())).toEqual(before);
+  expect(await page.locator(".cb-slot.filled").count()).toBe(2); // partial input restored
+
+  // clear partial input, then solve: guess 2 = the code → win in 2, tier 1
+  await page.locator("#cb-del").click();
+  await page.locator("#cb-del").click();
+  for (const k of code) await page.locator(`.cb-keys button[data-k="${k}"]`).click();
+  await page.locator("#cb-sub").click();
+  await expect(page.locator("#overlay.show")).toBeVisible();
+  await page.locator("#m-close").click();
+
+  await page.reload();
+  await openTab(page, "codebreak");
+  await expect(page.locator("#overlay.show")).toHaveCount(0);
+  await expect(page.locator("#pane-codebreak .slimbar.win")).toBeVisible();
+  await expect(page.locator("#pane-codebreak .slimbar span")).toContainText("Mastermind");
+
+  const h = await readHistory(page);
+  expect(h.filter(r => r.game === "codebreak")).toEqual([
+    { date: DATE_KEY, game: "codebreak", tier: 1, metrics: { guesses: 2, win: true } }
+  ]);
+  expect(errors).toEqual([]);
+});
