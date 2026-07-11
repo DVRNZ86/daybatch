@@ -1,6 +1,8 @@
 // Shared UI: result modal + confetti, help overlay, element helper.
 // Ported verbatim from v13. DOM lookups happen in initUI() (called once from
 // main.js) so game modules stay importable in Node for logic tests.
+import { shareText } from "./share.js";
+
 export function el(html){const t=document.createElement("template");t.innerHTML=html.trim();return t.content.firstChild;}
 
 let overlay,modal,modalCtx=null;
@@ -53,8 +55,11 @@ export function initUI(){
   document.getElementById("m-close").onclick=()=>overlay.classList.remove("show");
   overlay.onclick=(e)=>{if(e.target===overlay)overlay.classList.remove("show");};
   document.getElementById("m-copy").onclick=async()=>{
-    try{await navigator.clipboard.writeText(modalCtx.share);document.getElementById("m-copy").textContent="Copied ✓";
-    setTimeout(()=>{document.getElementById("m-copy").textContent="Share";},1600);}catch(e){}
+    // B3: Web Share (with url field) on supporting devices, clipboard otherwise.
+    const r=await shareText(modalCtx.share);
+    if(r==="failed")return;
+    document.getElementById("m-copy").textContent=r==="shared"?"Shared ✓":"Copied ✓";
+    setTimeout(()=>{document.getElementById("m-copy").textContent="Share";},1600);
   };
   document.getElementById("m-again").onclick=()=>{overlay.classList.remove("show");modalCtx&&modalCtx.onAgain();};
   document.getElementById("h-close").onclick=()=>helpov.classList.remove("show");

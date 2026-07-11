@@ -4,6 +4,7 @@
 import { mulberry32, dailySeed } from "../core/rng.js";
 import { showResult, showHelp, showSlimBar } from "../core/ui.js";
 import { getGameState, setGameState, addHistory, localDateKey } from "../core/storage.js";
+import { SITE_URL } from "../core/share.js";
 
 const SIZE=5,N=25,START=0,END=24;
 let pane;
@@ -213,7 +214,7 @@ function updatePath(){
 function result(){
   const moves=path.length;
   const label=moves<=puz.par&&attempts===1?"Perfect! ⛳":moves<=puz.par?"Best path! ⛳":"Solved!";
-  const share="DAYBATCH · TALLY 🧮 "+label+" 🎯 "+puz.target+"\nPath "+moves+" · Best "+puz.par+(moves<=puz.par?" ⛳":" (+"+(moves-puz.par)+")")+"\nTries: "+attempts;
+  const share="DAYBATCH · TALLY 🧮 "+label+" 🎯 "+puz.target+"\nPath "+moves+" · Best "+puz.par+(moves<=puz.par?" ⛳":" (+"+(moves-puz.par)+")")+"\nTries: "+attempts+"\n"+SITE_URL; // B3 link footer
   return{win:true,title:label,
     line:"Path "+moves+" · Best "+puz.par+" · Tries "+attempts,share,
     onAgain:()=>load(Math.floor(Math.random()*1e9),false),

@@ -3,6 +3,7 @@
 import { mulberry32, dailySeed } from "../core/rng.js";
 import { showResult, showHelp, showSlimBar } from "../core/ui.js";
 import { getGameState, setGameState, addHistory, localDateKey } from "../core/storage.js";
+import { SITE_URL } from "../core/share.js";
 
 const ROWS=7,COLS=5;
 let pane;
@@ -119,9 +120,9 @@ function tap(i){
 }
 function result(){
   const label=status!=="win"?"Blown up 💥":lives===3?"Flawless crossing!":lives===2?"Made it!":"By a whisker!";
-  const share=status==="win"
+  const share=(status==="win"
     ?"DAYBATCH · CROSSING 🧭 "+label+"\n"+steps+" steps · "+"❤️".repeat(lives)+"💥".repeat(3-lives)
-    :"DAYBATCH · CROSSING 💥\nDidn't make it — "+steps+" steps";
+    :"DAYBATCH · CROSSING 💥\nDidn't make it — "+steps+" steps")+"\n"+SITE_URL; // B3 link footer
   return{win:status==="win",title:label,
     line:steps+" steps · "+"❤️".repeat(lives)+"💥".repeat(3-lives),share,
     onAgain:()=>load(Math.floor(Math.random()*1e9),false),
