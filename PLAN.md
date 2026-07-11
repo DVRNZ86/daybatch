@@ -103,7 +103,8 @@ https://daybatch.app
 **Accept:** score math unit-tested for all tier combos; streak math tested across date boundaries incl. Pacific/Auckland; share card renders, copies, and Web-Shares on mobile with the tappable link footer; EPOCH constant set and documented.
 
 **B3 decisions (Darren, 11 Jul 2026):**
-- **EPOCH = 11 July 2026 (device-local).** `puzzleNumber = daysBetween(EPOCH, localDate) + 1`; the 11 July 2026 batch is #1. Permanent.
+- **EPOCH = 10 September 2026 (device-local), a fixed future launch date** (amends A6's "ship date" wording; Darren, 11 Jul 2026). `puzzleNumber = daysBetween(EPOCH, localDate) + 1`; the 10 Sep 2026 batch is #1. Permanent.
+- **Countdown pre-launch:** before EPOCH the header/report/share display `#−N` (days until launch; `#−1` on 9 Sep, never `#0`), and the report + unified share card carry the note line `Official scoring starts 10 Sep 2026` (exact string, contract). Everything works during the countdown — scores, streaks, history — and **carries over at launch unchanged** (no reset).
 - **Perfect batch = all five games completed that day** (any tiers); tracked alongside the batch streak.
 - **Batch Report card renders below the active game pane** once ≥1 daily is completed.
 - **Daily Crossing loses its Retry button** (practice keeps it). Mid-game retry erased attempts without record, making flawless tiers farmable once scoring exists. Approved v13 deviation.

@@ -1,9 +1,8 @@
 // Shared UI: result modal + confetti, help overlay, element helper.
 // Ported verbatim from v13. DOM lookups happen in initUI() (called once from
 // main.js) so game modules stay importable in Node for logic tests.
-import { shareText, batchCard, gameLine } from "./share.js";
+import { shareText, batchCard, gameLine, puzzleLabel, isPreseason, PRESEASON_NOTE } from "./share.js";
 import { getHistory, localDateKey } from "./storage.js";
-import { puzzleNumber } from "./rng.js";
 import { GAMES, dayScore, batchStreak, recordsFor, isPerfectBatch, perfectStreak } from "./streaks.js";
 
 export function el(html){const t=document.createElement("template");t.innerHTML=html.trim();return t.content.firstChild;}
@@ -23,9 +22,10 @@ export function refreshReport(){
   const perfect=isPerfectBatch(history,today);
   host.innerHTML=`
     <div id="report">
-      <div class="rp-head"><span class="rp-title">BATCH REPORT · #${puzzleNumber()}</span><span class="rp-score">${dayScore(history,today)}/100${streak>=1?` 🔥${streak}`:""}</span></div>
+      <div class="rp-head"><span class="rp-title">BATCH REPORT · ${puzzleLabel()}</span><span class="rp-score">${dayScore(history,today)}/100${streak>=1?` 🔥${streak}`:""}</span></div>
       <div class="rp-lines">${GAMES.map(g=>`<div>${gameLine(g,recs.find(r=>r.game===g)||null)}</div>`).join("")}</div>
       ${perfect?`<div class="rp-perfect">✨ Perfect batch — streak ${perfectStreak(history,today)}</div>`:""}
+      ${isPreseason()?`<div class="rp-note">${PRESEASON_NOTE}</div>`:""}
       <button class="btn pri" id="rp-share">Share batch</button>
     </div>`;
   document.getElementById("rp-share").onclick=async()=>{

@@ -39,14 +39,26 @@ export function gameLine(game, r) {
 
 function parseKey(k) { const [y, m, d] = k.split("-").map(Number); return new Date(y, m - 1, d); }
 
+// Displayed puzzle number (B3 countdown decision): "#N" from launch day,
+// "#−N" days-to-launch before it (never "#0": the eve of launch is "#−1").
+export function puzzleLabel(d = new Date()) {
+  const n = puzzleNumber(d);
+  return n >= 1 ? `#${n}` : `#−${1 - n}`;
+}
+
+// Pre-launch note line (exact string, contract per PLAN.md B3 decisions).
+export const PRESEASON_NOTE = "Official scoring starts 10 Sep 2026";
+export function isPreseason(d = new Date()) { return puzzleNumber(d) < 1; }
+
 // The unified Batch card (Option 2, line-per-game). Exact-format contract.
 export function batchCard(history, dateKey) {
-  const n = puzzleNumber(parseKey(dateKey));
+  const d = parseKey(dateKey);
   const score = dayScore(history, dateKey);
   const streak = batchStreak(history, dateKey);
   const recs = history.filter(r => r.date === dateKey);
   const lines = META.map(([g]) => gameLine(g, recs.find(r => r.game === g) || null));
-  return `DAYBATCH #${n} · ${score}/100${streak >= 1 ? ` 🔥${streak}` : ""}\n${lines.join("\n")}\n${SITE_URL}`;
+  const note = isPreseason(d) ? `${PRESEASON_NOTE}\n` : "";
+  return `DAYBATCH ${puzzleLabel(d)} · ${score}/100${streak >= 1 ? ` 🔥${streak}` : ""}\n${lines.join("\n")}\n${note}${SITE_URL}`;
 }
 
 // Web Share with url field (B3 link-footer decision) when available,

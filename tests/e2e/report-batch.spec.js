@@ -4,7 +4,7 @@
 //    the B3 link footer — a drift check on all five result strings), then the
 //    Batch Report at 100/100 with the ✨ Perfect batch line.
 // 2. Practice completions never touch the report, header streak, or history.
-// Date pinned to 16 July 2026 (= puzzle #6; EPOCH is 11 July 2026).
+// Date pinned to 15 September 2026 (= puzzle #6; EPOCH is 10 September 2026).
 import { test, expect } from "@playwright/test";
 import { hashString } from "../../src/core/rng.js";
 import { SITE_URL } from "../../src/core/share.js";
@@ -14,8 +14,8 @@ import { gen as genCode } from "../../src/games/codebreak.js";
 import { gen as genTally, neighbors, applyOp } from "../../src/games/tally.js";
 import { gen as genLexi } from "../../src/games/lexi.js";
 
-const DAY = { y: 2026, m: 6, d: 16 }; // 16 July 2026 (m is JS month index)
-const DATE_KEY = "2026-7-16";
+const DAY = { y: 2026, m: 8, d: 15 }; // 15 September 2026 (m is JS month index)
+const DATE_KEY = "2026-9-15";
 
 async function pinDate(page) {
   await page.addInitScript(({ y, m, d }) => {

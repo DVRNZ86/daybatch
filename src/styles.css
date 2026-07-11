@@ -242,3 +242,4 @@
 #report .rp-perfect { font-size:12px; font-weight:600; color:var(--win); margin-bottom:8px; }
 #report button { width:100%; }
 #hdr-streak { font-weight:700; font-size:13px; }
+#report .rp-note { font-size:11px; color:var(--faded); font-weight:600; margin-bottom:8px; }

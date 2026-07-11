@@ -36,17 +36,17 @@ test("share-line table: every cell (PLAN.md B3 contract)", () => {
 });
 
 test("batchCard reproduces the PLAN.md sample exactly (score per tier table)", () => {
-  // Puzzle #14 = EPOCH(11 Jul 2026) + 13 days = 24 Jul 2026; 🔥7 = played 18th–24th.
+  // Puzzle #14 = EPOCH(10 Sep 2026) + 13 days = 23 Sep 2026; 🔥7 = played 17th–23rd.
   const h = [];
-  for (let d = 18; d <= 23; d++) h.push(rec(`2026-7-${d}`, "sonar", 1, { pings: 7 }));
+  for (let d = 17; d <= 22; d++) h.push(rec(`2026-9-${d}`, "sonar", 1, { pings: 7 }));
   h.push(
-    rec("2026-7-24", "tally", 2, { moves: 9, par: 9, attempts: 2 }),
-    rec("2026-7-24", "crossing", 1, { lives: 3 }),
-    rec("2026-7-24", "sonar", 1, { pings: 7 }),
-    rec("2026-7-24", "codebreak", 2, { guesses: 4, win: true }),
-    rec("2026-7-24", "lexi", 1, { hints: 0 })
+    rec("2026-9-23", "tally", 2, { moves: 9, par: 9, attempts: 2 }),
+    rec("2026-9-23", "crossing", 1, { lives: 3 }),
+    rec("2026-9-23", "sonar", 1, { pings: 7 }),
+    rec("2026-9-23", "codebreak", 2, { guesses: 4, win: true }),
+    rec("2026-9-23", "lexi", 1, { hints: 0 })
   );
-  assert.equal(batchCard(h, "2026-7-24"),
+  assert.equal(batchCard(h, "2026-9-23"),
 `DAYBATCH #14 · 90/100 🔥7
 🧮 Tally — Best path ⛳
 🧭 Crossing — Flawless
@@ -56,15 +56,36 @@ test("batchCard reproduces the PLAN.md sample exactly (score per tier table)", (
 ${SITE_URL}`);
 });
 
-test("batchCard with a single game done and no prior streak", () => {
-  const h = [rec("2026-7-11", "sonar", 1, { pings: 7 })];
-  assert.equal(batchCard(h, "2026-7-11"),
+test("batchCard with a single game done on launch day, no prior streak", () => {
+  const h = [rec("2026-9-10", "sonar", 1, { pings: 7 })];
+  assert.equal(batchCard(h, "2026-9-10"),
 `DAYBATCH #1 · 20/100 🔥1
 🧮 Tally — not played
 🧭 Crossing — not played
 📡 Sonar — Perfect 🏆
 🔐 Codebreak — not played
 🔤 Lexi — not played
+${SITE_URL}`);
+});
+
+test("countdown: puzzleLabel and preseason note (B3 EPOCH amendment contract)", async () => {
+  const { puzzleLabel, isPreseason, PRESEASON_NOTE } = await import("../../src/core/share.js");
+  assert.equal(PRESEASON_NOTE, "Official scoring starts 10 Sep 2026");
+  assert.equal(puzzleLabel(new Date(2026, 8, 10)), "#1");   // launch
+  assert.equal(puzzleLabel(new Date(2026, 8, 9)), "#−1");   // eve — never #0
+  assert.equal(puzzleLabel(new Date(2026, 6, 11)), "#−61"); // build day
+  assert.equal(isPreseason(new Date(2026, 8, 9)), true);
+  assert.equal(isPreseason(new Date(2026, 8, 10)), false);
+  // pre-launch card: countdown label + note line above the footer
+  const h = [rec("2026-7-11", "sonar", 1, { pings: 7 })];
+  assert.equal(batchCard(h, "2026-7-11"),
+`DAYBATCH #−61 · 20/100 🔥1
+🧮 Tally — not played
+🧭 Crossing — not played
+📡 Sonar — Perfect 🏆
+🔐 Codebreak — not played
+🔤 Lexi — not played
+Official scoring starts 10 Sep 2026
 ${SITE_URL}`);
 });
 
