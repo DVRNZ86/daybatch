@@ -1,6 +1,6 @@
 // Boot + tab router + lazy init. Ported verbatim from v13; the only change is
 // that game init functions live in modules and UI wiring happens via initUI().
-import { initUI } from "./core/ui.js";
+import { initUI, refreshReport } from "./core/ui.js";
 import { getLastSeenDate, setLastSeenDate, localDateKey } from "./core/storage.js";
 import { initTally } from "./games/tally.js";
 import { initCrossing } from "./games/crossing.js";
@@ -38,9 +38,10 @@ document.getElementById("rollover-go").onclick=()=>{
   setLastSeenDate(localDateKey());
   rolloverEl.classList.add("hide");
   Object.keys(DONE).forEach(t=>{ if(DONE[t])INIT[t](); }); // re-init to today's dailies
+  refreshReport(); // B3: new day → fresh report + streak chip
 };
 document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="visible")checkRollover(); });
 window.addEventListener("focus",checkRollover);
 
 // boot: paint first, then init only the visible game
-requestAnimationFrame(()=>{ setTimeout(()=>ensureInit("sonar"),0); });
+requestAnimationFrame(()=>{ setTimeout(()=>{ensureInit("sonar");refreshReport();},0); });

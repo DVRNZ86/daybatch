@@ -65,3 +65,19 @@ test("dailySeed rolls over at device-local midnight (Pacific/Auckland pin)", () 
     global.Date = RealDate;
   }
 });
+
+test("puzzleNumber: EPOCH (10 Sep 2026 launch) day is #1, permanent arithmetic (B3 contract)", async () => {
+  const { puzzleNumber, EPOCH } = await import("../../src/core/rng.js");
+  assert.deepEqual(EPOCH, [2026, 8, 10]);
+  assert.equal(puzzleNumber(new Date(2026, 8, 10)), 1);   // launch day
+  assert.equal(puzzleNumber(new Date(2026, 8, 11)), 2);
+  assert.equal(puzzleNumber(new Date(2026, 8, 10, 23, 59)), 1); // time of day irrelevant
+  assert.equal(puzzleNumber(new Date(2026, 9, 9)), 30);
+  assert.equal(puzzleNumber(new Date(2027, 8, 10)), 366);
+  // NZ DST boundaries (suite runs TZ=Pacific/Auckland): late Sept/early Apr
+  assert.equal(puzzleNumber(new Date(2026, 8, 27)) + 1, puzzleNumber(new Date(2026, 8, 28)), "DST start");
+  assert.equal(puzzleNumber(new Date(2027, 3, 4)) + 1, puzzleNumber(new Date(2027, 3, 5)), "DST end");
+  // countdown zone: eve of launch is 0, build day (11 Jul 2026) is −60
+  assert.equal(puzzleNumber(new Date(2026, 8, 9)), 0);
+  assert.equal(puzzleNumber(new Date(2026, 6, 11)), -60);
+});

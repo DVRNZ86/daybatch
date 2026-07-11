@@ -3,6 +3,7 @@
 import { mulberry32, dailySeed } from "../core/rng.js";
 import { showResult, showHelp, showSlimBar } from "../core/ui.js";
 import { getGameState, setGameState, addHistory, localDateKey } from "../core/storage.js";
+import { SITE_URL } from "../core/share.js";
 
 const SYMS=[["tri","#E4572E"],["cir","#2E86FF"],["sq","#0FB360"],["dia","#8B5CF6"],["star","#F5A800"],["pen","#E5484D"],["plus","#0FA3A3"]];
 const LEN=5,MAXG=8;
@@ -55,7 +56,7 @@ function result(){
   const g=guesses.length;
   const label=status!=="win"?"Locked out":g<=2?"Mastermind! 🧠":g<=4?"Cracked it!":g<=6?"Solid solve":"Close call!";
   const share="DAYBATCH · CODEBREAK 🔐 "+label+" "+(status==="win"?g:"X")+"/"+MAXG+"\n"+
-    guesses.map(gu=>gu.map((_,i)=>EMO[slotState(gu,i)]).join("")).join("\n");
+    guesses.map(gu=>gu.map((_,i)=>EMO[slotState(gu,i)]).join("")).join("\n")+"\n"+SITE_URL; // B3 link footer
   return{win:status==="win",title:label,
     line:status==="win"?"Solved in "+g+" of "+MAXG:"Out of guesses",
     share,onAgain:()=>load(Math.floor(Math.random()*1e9),false),

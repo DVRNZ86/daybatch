@@ -1,7 +1,41 @@
 // Shared UI: result modal + confetti, help overlay, element helper.
 // Ported verbatim from v13. DOM lookups happen in initUI() (called once from
 // main.js) so game modules stay importable in Node for logic tests.
+import { shareText, batchCard, gameLine, puzzleLabel, isPreseason, PRESEASON_NOTE } from "./share.js";
+import { getHistory, localDateKey } from "./storage.js";
+import { GAMES, dayScore, batchStreak, recordsFor, isPerfectBatch, perfectStreak } from "./streaks.js";
+
 export function el(html){const t=document.createElement("template");t.innerHTML=html.trim();return t.content.firstChild;}
+
+// B3 Batch Report card (below the active pane) + header 🔥 streak chip.
+// Renders from history alone, so it survives reloads and ignores practice.
+export function refreshReport(){
+  const host=document.getElementById("report-host");
+  const flame=document.getElementById("hdr-streak");
+  const history=getHistory();
+  const today=localDateKey();
+  const streak=batchStreak(history,today);
+  if(streak>=1){flame.textContent="🔥"+streak;flame.classList.remove("hide");}
+  else flame.classList.add("hide");
+  const recs=recordsFor(history,today);
+  if(!recs.length){host.innerHTML="";return;}
+  const perfect=isPerfectBatch(history,today);
+  host.innerHTML=`
+    <div id="report">
+      <div class="rp-head"><span class="rp-title">BATCH REPORT · ${puzzleLabel()}</span><span class="rp-score">${dayScore(history,today)}/100${streak>=1?` 🔥${streak}`:""}</span></div>
+      <div class="rp-lines">${GAMES.map(g=>`<div>${gameLine(g,recs.find(r=>r.game===g)||null)}</div>`).join("")}</div>
+      ${perfect?`<div class="rp-perfect">✨ Perfect batch — streak ${perfectStreak(history,today)}</div>`:""}
+      ${isPreseason()?`<div class="rp-note">${PRESEASON_NOTE}</div>`:""}
+      <button class="btn pri" id="rp-share">Share batch</button>
+    </div>`;
+  document.getElementById("rp-share").onclick=async()=>{
+    const r=await shareText(batchCard(history,today));
+    if(r==="failed")return;
+    const b=document.getElementById("rp-share");
+    b.textContent=r==="shared"?"Shared ✓":"Copied ✓";
+    setTimeout(()=>{const bb=document.getElementById("rp-share");if(bb)bb.textContent="Share batch";},1600);
+  };
+}
 
 let overlay,modal,modalCtx=null;
 
@@ -42,6 +76,7 @@ export function showResult(ctx){ // {win,title,line,share,onAgain,slimHost}
   overlay.classList.add("show");
   if(ctx.win){confetti();try{navigator.vibrate&&navigator.vibrate([35,60,35,60,90]);}catch(e){}}
   showSlimBar(ctx);
+  refreshReport(); // B3: a finish may change today's score/streak
 }
 
 let helpov;
@@ -53,8 +88,11 @@ export function initUI(){
   document.getElementById("m-close").onclick=()=>overlay.classList.remove("show");
   overlay.onclick=(e)=>{if(e.target===overlay)overlay.classList.remove("show");};
   document.getElementById("m-copy").onclick=async()=>{
-    try{await navigator.clipboard.writeText(modalCtx.share);document.getElementById("m-copy").textContent="Copied ✓";
-    setTimeout(()=>{document.getElementById("m-copy").textContent="Share";},1600);}catch(e){}
+    // B3: Web Share (with url field) on supporting devices, clipboard otherwise.
+    const r=await shareText(modalCtx.share);
+    if(r==="failed")return;
+    document.getElementById("m-copy").textContent=r==="shared"?"Shared ✓":"Copied ✓";
+    setTimeout(()=>{document.getElementById("m-copy").textContent="Share";},1600);
   };
   document.getElementById("m-again").onclick=()=>{overlay.classList.remove("show");modalCtx&&modalCtx.onAgain();};
   document.getElementById("h-close").onclick=()=>helpov.classList.remove("show");

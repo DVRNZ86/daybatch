@@ -3,6 +3,7 @@
 import { mulberry32, dailySeed } from "../core/rng.js";
 import { showResult, showHelp, showSlimBar } from "../core/ui.js";
 import { getGameState, setGameState, addHistory, localDateKey } from "../core/storage.js";
+import { SITE_URL } from "../core/share.js";
 
 const ROWS=7,COLS=5;
 let pane;
@@ -119,9 +120,9 @@ function tap(i){
 }
 function result(){
   const label=status!=="win"?"Blown up 💥":lives===3?"Flawless crossing!":lives===2?"Made it!":"By a whisker!";
-  const share=status==="win"
+  const share=(status==="win"
     ?"DAYBATCH · CROSSING 🧭 "+label+"\n"+steps+" steps · "+"❤️".repeat(lives)+"💥".repeat(3-lives)
-    :"DAYBATCH · CROSSING 💥\nDidn't make it — "+steps+" steps";
+    :"DAYBATCH · CROSSING 💥\nDidn't make it — "+steps+" steps")+"\n"+SITE_URL; // B3 link footer
   return{win:status==="win",title:label,
     line:steps+" steps · "+"❤️".repeat(lives)+"💥".repeat(3-lives),share,
     onAgain:()=>load(Math.floor(Math.random()*1e9),false),
@@ -155,14 +156,16 @@ function render(){
     </div>
     <div class="board"><div id="cr-grid">${cells}</div></div>
     <div class="btnrow">
-      <button class="btn" id="cr-retry">Retry</button>
+      ${isDaily?"":'<button class="btn" id="cr-retry">Retry</button>'}
       <button class="btn" id="cr-new">New puzzle</button>
       <button class="btn pri" id="cr-today">Today's</button>
     </div>
     <div class="slimhost"></div>`;
   pane.querySelectorAll("#cr-grid button").forEach(b=>b.onclick=()=>tap(+b.dataset.i));
   pane.querySelector("#cr-help").onclick=()=>showHelp(CR_HELP);
-  pane.querySelector("#cr-retry").onclick=()=>load(seed,isDaily);
+  // B3 decision (Darren, 11 Jul 2026): dailies are one continuous attempt —
+  // Retry only exists in practice. Mid-game retry made tiers farmable.
+  const retry=pane.querySelector("#cr-retry");if(retry)retry.onclick=()=>load(seed,isDaily);
   pane.querySelector("#cr-new").onclick=()=>load(Math.floor(Math.random()*1e9),false);
   pane.querySelector("#cr-today").onclick=()=>openDaily();
 }

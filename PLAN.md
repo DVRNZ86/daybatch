@@ -102,6 +102,25 @@ https://daybatch.app
 - **Link footer (Darren, 11 Jul 2026): the address must arrive as a tappable link, not plain decoration.** Footer line is the full URL `https://daybatch.app` (the scheme makes receiving apps auto-link it reliably); when sharing via the Web Share API, also pass `url: "https://daybatch.app"` so share targets render a proper link preview. Applies to the unified card and every per-game card.
 **Accept:** score math unit-tested for all tier combos; streak math tested across date boundaries incl. Pacific/Auckland; share card renders, copies, and Web-Shares on mobile with the tappable link footer; EPOCH constant set and documented.
 
+**B3 decisions (Darren, 11 Jul 2026):**
+- **EPOCH = 10 September 2026 (device-local), a fixed future launch date** (amends A6's "ship date" wording; Darren, 11 Jul 2026). `puzzleNumber = daysBetween(EPOCH, localDate) + 1`; the 10 Sep 2026 batch is #1. Permanent.
+- **Countdown pre-launch:** before EPOCH the header/report/share display `#−N` (days until launch; `#−1` on 9 Sep, never `#0`), and the report + unified share card carry the note line `Official scoring starts 10 Sep 2026` (exact string, contract). Everything works during the countdown — scores, streaks, history — and **carries over at launch unchanged** (no reset).
+- **Perfect batch = all five games completed that day** (any tiers); tracked alongside the batch streak.
+- **Batch Report card renders below the active game pane** once ≥1 daily is completed.
+- **Daily Crossing loses its Retry button** (practice keeps it). Mid-game retry erased attempts without record, making flawless tiers farmable once scoring exists. Approved v13 deviation.
+- **Per-game share-line table (contract; N = the relevant metric):**
+
+| Game | Tier 1 | Tier 2 | Tier 3 | Tier 4 | Unplayed |
+|---|---|---|---|---|---|
+| 🧮 Tally | `Perfect ⛳` | `Best path ⛳` | `Solved (+N)` | — | `— not played` |
+| 🧭 Crossing | `Flawless` | `Made it` | `By a whisker` | `Blown up 💥` | `— not played` |
+| 📡 Sonar | `Perfect 🏆` | `N pings` | `N pings` | `N pings` | `— not played` |
+| 🔐 Codebreak | `N/8` | `N/8` | `N/8` | `N/8` win · `X/8` fail | `— not played` |
+| 🔤 Lexi | `No hints` | `N hints` | `N hints` | — | `— not played` |
+
+- 🔥n appears in the card header whenever the batch streak ≥ 1.
+- The sample card's `85/100` was illustrative; its five lines score 90 under the approved tier table. Format is contract; arithmetic follows the tier table.
+
 ### B4 — PWA
 Manifest, icons, standalone display, theme colour; service worker cache-first shell with versioned cache-busting; iOS meta tags; one-time subtle install hint.
 **Accept:** installs with proper icon/splash; full airplane-mode launch; new deploy reaches clients within one revisit; Lighthouse PWA green.

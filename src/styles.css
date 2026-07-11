@@ -229,3 +229,17 @@
   padding:8px 12px; border:none; border-radius:10px; background:var(--ink);
   color:#fff; font-weight:600; font-family:inherit; font-size:13px; cursor:pointer;
 }
+
+/* B3: batch report card + header streak chip */
+#report {
+  margin-top:14px; background:var(--card); border:1px solid var(--grid);
+  border-radius:16px; padding:12px 14px; box-shadow:0 4px 20px rgba(22,50,79,.08);
+}
+#report .rp-head { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:8px; }
+#report .rp-title { font-size:11px; letter-spacing:.14em; color:var(--faded); font-weight:600; }
+#report .rp-score { font-family:ui-monospace,monospace; font-weight:700; font-size:18px; }
+#report .rp-lines { font-family:ui-monospace,monospace; font-size:13px; line-height:1.7; margin-bottom:10px; }
+#report .rp-perfect { font-size:12px; font-weight:600; color:var(--win); margin-bottom:8px; }
+#report button { width:100%; }
+#hdr-streak { font-weight:700; font-size:13px; }
+#report .rp-note { font-size:11px; color:var(--faded); font-weight:600; margin-bottom:8px; }

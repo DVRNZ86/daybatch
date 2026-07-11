@@ -3,6 +3,7 @@
 import { mulberry32, dailySeed } from "../core/rng.js";
 import { showResult, showHelp, showSlimBar } from "../core/ui.js";
 import { getGameState, setGameState, addHistory, localDateKey } from "../core/storage.js";
+import { SITE_URL } from "../core/share.js";
 
 const SN=7,SHIPS=[3,2,2];
 let pane;
@@ -79,7 +80,7 @@ function tap(i){
 function result(){
   const p=revealed.size;
   const label=p===puz.total?"Perfect! 🏆":p<=puz.total+2?"Sharp shooting!":p<=puz.total+5?"Solid sweep":"All found";
-  const share="DAYBATCH · SONAR 📡 "+label+"\n"+p+" pings";
+  const share="DAYBATCH · SONAR 📡 "+label+"\n"+p+" pings"+"\n"+SITE_URL; // B3 link footer
   return{win:true,title:label,line:p+" pings",
     share,onAgain:()=>load(Math.floor(Math.random()*1e9),false),
     slimHost:pane.querySelector(".slimhost")};

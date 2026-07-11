@@ -5,6 +5,7 @@
 import { mulberry32, dailySeed } from "../core/rng.js";
 import { showResult, showHelp, showSlimBar } from "../core/ui.js";
 import { getGameState, setGameState, addHistory, localDateKey } from "../core/storage.js";
+import { SITE_URL } from "../core/share.js";
 import { W6, ALL } from "./words.js";
 
 export function counts(w){const c={};for(const ch of w)c[ch]=(c[ch]||0)+1;return c;}
@@ -213,7 +214,7 @@ function checkWin(){
 }
 function result(){
   const label=hints===0?"Wordsmith! 🏆":hints<=2?"Sharp!":"Solved!";
-  const share="DAYBATCH · LEXI 🔤 "+label+"\n"+puz.targets.length+" words · "+hints+" hint"+(hints===1?"":"s");
+  const share="DAYBATCH · LEXI 🔤 "+label+"\n"+puz.targets.length+" words · "+hints+" hint"+(hints===1?"":"s")+"\n"+SITE_URL; // B3 link footer
   return{win:true,title:label,
     line:puz.targets.length+" words · "+hints+" hint"+(hints===1?"":"s"),share,
     onAgain:()=>load(Math.floor(Math.random()*1e9),false),

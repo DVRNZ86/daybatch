@@ -21,7 +21,10 @@ async function pinDate(page) {
   });
 }
 
-const norm = html => html.replace(/\s+/g, " ").trim();
+// APPROVED DEVIATION (PLAN.md B3 decisions): daily Crossing has no Retry
+// button. Strip it from v13 snapshots so the rest of the pane stays byte-compared.
+const RETRY_BTN = '<button class="btn" id="cr-retry">Retry</button> ';
+const norm = html => html.replace(/\s+/g, " ").trim().replace(RETRY_BTN, "");
 
 // Load a page, init all five games, run the same deterministic probes on each,
 // and return per-game pane snapshots.
