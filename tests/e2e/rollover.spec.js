@@ -69,6 +69,9 @@ test("NZ midnight rollover prompts for a new batch and never silently resets", a
 });
 
 test("reload after midnight loads fresh dailies directly, no prompt", async ({ page }) => {
+  const errors = [];
+  page.on("console", m => { if (m.type() === "error") errors.push(m.text()); });
+  page.on("pageerror", e => errors.push(String(e)));
   await pinMutableClock(page);
   await page.goto("/");
   await expect(page.locator("#pane-sonar .board")).toBeVisible();
@@ -81,4 +84,5 @@ test("reload after midnight loads fresh dailies directly, no prompt", async ({ p
   await expect(page.locator("#pane-sonar .board")).toBeVisible();
   await expect(page.locator("#pane-sonar .stat:has(.lb:text('PINGS')) .vl")).toHaveText("0");
   await expect(page.locator("#rollover")).toBeHidden();
+  expect(errors).toEqual([]);
 });

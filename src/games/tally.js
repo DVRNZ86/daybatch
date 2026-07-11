@@ -89,7 +89,9 @@ function openDaily(){
   const sd=dailySeed("tally");
   const s=getGameState("tally");
   if(s&&s.date===localDateKey()&&s.seed===sd){
-    isDaily=true;seedCur=s.seed;dateCur=s.date;puz=gen(s.seed);
+    puz=gen(s.seed);
+    if(!puz){load(sd,true);return;} // seed failed to generate: snapshot can't be trusted
+    isDaily=true;seedCur=s.seed;dateCur=s.date;
     path=s.path;attempts=s.attempts;status=s.status;
     buildDOM();
     elTries.textContent=attempts;
