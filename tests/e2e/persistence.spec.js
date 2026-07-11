@@ -273,3 +273,66 @@ test("Tally: mid-game path survives reload; par win restores as bar", async ({ p
   ]);
   expect(errors).toEqual([]);
 });
+
+// ----------------------------------------------------------------- LEXI ----
+
+test("Lexi: found words, hints and wheel order survive reload; win restores as bar", async ({ page }) => {
+  const errors = trackErrors(page);
+  await pinDate(page);
+  const { gen: genLexi } = await import("../../src/games/lexi.js");
+  const puz = genLexi(hashString("lexi-" + DATE_KEY));
+  const N = puz.targets.length;
+
+  // greedy letter-index sequence for a word on the initial wheel order
+  const indicesFor = word => {
+    const used = new Set(), seq = [];
+    for (const ch of word) {
+      const i = puz.letters.findIndex((l, idx) => l === ch && !used.has(idx));
+      used.add(i); seq.push(i);
+    }
+    return seq;
+  };
+
+  await page.goto("/");
+  await openTab(page, "lexi");
+
+  // find two targets by tapping letters + Check, then take one hint
+  for (const w of puz.targets.slice(0, 2)) {
+    for (const i of indicesFor(w)) await page.locator(`.lx-letter[data-i="${i}"]`).click();
+    await page.locator("#lx-check").click();
+  }
+  await page.locator("#lx-hint").click();
+  await expect(page.locator("#lx-found")).toHaveText(`3/${N}`);
+  await expect(page.locator("#lx-hints")).toHaveText("1");
+  const slotsBefore = norm(await page.locator("#lx-slots").innerHTML());
+
+  await page.reload();
+  await openTab(page, "lexi");
+  await expect(page.locator("#lx-found")).toHaveText(`3/${N}`);
+  await expect(page.locator("#lx-hints")).toHaveText("1");
+  expect(norm(await page.locator("#lx-slots").innerHTML())).toEqual(slotsBefore);
+
+  // shuffle, then reload: the shuffled wheel order must persist
+  await page.locator("#lx-shuffle").click();
+  const wheel = await page.locator(".lx-letter").allTextContents();
+  await page.reload();
+  await openTab(page, "lexi");
+  expect(await page.locator(".lx-letter").allTextContents()).toEqual(wheel);
+
+  // hint to completion → "Solved!" (hints ≥ 3), tier 3
+  for (let k = 0; k < N - 3; k++) await page.locator("#lx-hint").click();
+  await expect(page.locator("#overlay.show")).toBeVisible();
+  await page.locator("#m-close").click();
+
+  await page.reload();
+  await openTab(page, "lexi");
+  await expect(page.locator("#overlay.show")).toHaveCount(0);
+  await expect(page.locator("#pane-lexi .slimbar.win")).toBeVisible();
+  await expect(page.locator("#pane-lexi .slimbar span")).toContainText("Solved");
+
+  const h = await readHistory(page);
+  expect(h.filter(r => r.game === "lexi")).toEqual([
+    { date: DATE_KEY, game: "lexi", tier: 3, metrics: { words: N, hints: N - 2, win: true } }
+  ]);
+  expect(errors).toEqual([]);
+});
