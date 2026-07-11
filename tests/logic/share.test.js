@@ -69,17 +69,19 @@ ${SITE_URL}`);
 });
 
 test("shareText prefers Web Share with the url field, falls back to clipboard", async () => {
+  // Node's global navigator is getter-only; override via defineProperty.
+  const setNav = v => Object.defineProperty(globalThis, "navigator", { value: v, configurable: true });
+
   const calls = [];
-  globalThis.navigator = { share: async p => calls.push(p) };
+  setNav({ share: async p => calls.push(p) });
   assert.equal(await shareText("CARD"), "shared");
   assert.deepEqual(calls, [{ text: "CARD", url: SITE_URL }]);
 
   const copied = [];
-  globalThis.navigator = { clipboard: { writeText: async t => copied.push(t) } };
+  setNav({ clipboard: { writeText: async t => copied.push(t) } });
   assert.equal(await shareText("CARD"), "copied");
   assert.deepEqual(copied, ["CARD"]);
 
-  globalThis.navigator = { share: async () => { throw new Error("dismissed"); } };
+  setNav({ share: async () => { throw new Error("dismissed"); } });
   assert.equal(await shareText("CARD"), "failed");
-  delete globalThis.navigator;
 });
