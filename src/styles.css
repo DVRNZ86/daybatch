@@ -230,6 +230,18 @@
   color:#fff; font-weight:600; font-family:inherit; font-size:13px; cursor:pointer;
 }
 
+/* B4: one-time install hint — subtler sibling of the rollover banner */
+#installhint {
+  display:flex; align-items:center; gap:10px; margin-bottom:8px;
+  background:var(--card); border:1.5px solid var(--grid); border-radius:12px;
+  padding:8px 12px; font-weight:600; font-size:13px;
+}
+#installhint span { flex:1; }
+#installhint button {
+  padding:8px 12px; border:none; border-radius:10px; background:transparent;
+  color:var(--faded); font-weight:600; font-family:inherit; font-size:13px; cursor:pointer;
+}
+
 /* B3: batch report card + header streak chip */
 #report {
   margin-top:14px; background:var(--card); border:1px solid var(--grid);
