@@ -25,6 +25,13 @@
 - **A5 — Versioning:** footer `v0.B<phase>.<n>`; git tag per completed phase.
 - **A6 — Puzzle number:** `#N = daysBetween(EPOCH, deviceLocalDate) + 1`. EPOCH is set at B3 ship date and never changes.
 - **A7 — Day rollover: device-local midnight for everything** (puzzle seed uses device-local date; streaks judged in device-local time). Wordle convention: same puzzle number worldwide, staggered by timezone. NZ gets its batch at NZ midnight.
+- **A8 — Monetization readiness, non-building (Darren, 12 Jul 2026).** Stage B ships zero monetization (see "Out of Stage B" below) — but every phase must preserve the seams a later stage needs, without building the feature now:
+  1. `storage.js`'s schema stays additive-extensible (A2). A future `premium`/`entitlements` field must slot in with zero migration, same as any other schema-1 addition.
+  2. The `isDaily`-style boolean pattern in game modules (daily vs. practice) stays generalizable to a third variant — e.g. a premium hard-mode — rather than hardcoded to two states. Don't refactor for this now; just don't paint it into a corner.
+  3. No phase adds a backend, accounts, or payment SDK without Darren's explicit sign-off — this is the existing no-new-dependencies rule, restated because monetization is the most likely reason someone reaches for one.
+  4. B4's install-hint UI is the natural future home for a support/unlock prompt. Noted for B4's builder, not built in B4.
+  5. **Open question, not yet decided:** stay web-only (Stripe-style payment links, no accounts) vs. eventually wrap natively via Capacitor for App/Play Store IAP. B4 ships as a PWA either way; this only matters if/when a native wrap is seriously considered (see IDEAS.md).
+  The actual monetization model and go-to-market plan is a dedicated discussion after B4/B5 ship — see IDEAS.md Stage D.
 
 ---
 
