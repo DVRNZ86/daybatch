@@ -70,14 +70,21 @@ if ("serviceWorker" in navigator) {
   });
 }
 
-// B4: one-time install hint. Skipped when already running installed
-// (standalone) or already shown once; the flag persists on the storage root.
+// B4: install hint banner — shown once automatically, and re-triggerable from
+// a link in the ? help overlay (every game shares the same overlay) for
+// anyone who dismissed it and later wants to install. Skipped entirely when
+// already running installed (standalone): nothing to prompt for.
 const isStandalone = matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
-if (!isStandalone && !getInstallHintShown()) {
-  const hintEl = document.getElementById("installhint");
-  hintEl.classList.remove("hide");
-  setInstallHintShown();
-  document.getElementById("installhint-x").onclick = () => hintEl.classList.add("hide");
+const hintEl = document.getElementById("installhint");
+document.getElementById("installhint-x").onclick = () => hintEl.classList.add("hide");
+if (!isStandalone) {
+  const installLinkEl = document.getElementById("h-install");
+  installLinkEl.classList.remove("hide");
+  installLinkEl.onclick = () => hintEl.classList.remove("hide");
+  if (!getInstallHintShown()) {
+    hintEl.classList.remove("hide");
+    setInstallHintShown();
+  }
 }
 
 // boot: paint first, then init only the visible game

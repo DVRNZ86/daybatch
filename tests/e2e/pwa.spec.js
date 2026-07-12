@@ -113,3 +113,19 @@ test("install hint: shown on first visit, dismissible, gone after reload", async
   await expect(page.locator(".logo")).toHaveText("DAYBATCH.");
   await expect(hint).toBeHidden();
 });
+
+test("install hint: reachable again from the ? help overlay after dismissal", async ({ page }) => {
+  await page.goto("/");
+  const hint = page.locator("#installhint");
+  await page.click("#installhint-x");
+  await expect(hint).toBeHidden();
+
+  // sonar is the default tab; its ? opens the shared help overlay
+  await page.click("#sn-help");
+  const installLink = page.locator("#h-install");
+  await expect(installLink).toBeVisible();
+  await expect(installLink).toHaveText("Add to home screen 🌅");
+
+  await installLink.click();
+  await expect(hint).toBeVisible();
+});

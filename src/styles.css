@@ -199,6 +199,7 @@
     font-size:12px; text-align:left; white-space:pre-wrap; margin:0;
   }
   #m-close { margin-top:8px; width:100%; padding:10px; border:none; background:transparent; color:var(--faded); font-weight:600; font-family:inherit; font-size:13px; cursor:pointer; }
+  #h-install { margin-top:8px; width:100%; padding:10px; border:none; background:transparent; color:var(--faded); font-weight:600; font-family:inherit; font-size:13px; cursor:pointer; }
   .slimbar {
     margin-top:14px; background:var(--card); border-radius:14px; padding:10px 14px;
     display:flex; align-items:center; gap:10px;
