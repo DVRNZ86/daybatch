@@ -4,7 +4,7 @@
 // VERSION must match the footer version in index.html — a logic test enforces
 // this. EVERY deploy (patches included) must bump both, or installed clients
 // keep serving the previous shell from cache.
-const VERSION = "v0.B4.2";
+const VERSION = "v0.B4.3";
 const CACHE = "daybatch-" + VERSION;
 
 const SHELL = [

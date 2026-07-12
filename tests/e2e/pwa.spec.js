@@ -129,3 +129,41 @@ test("install hint: reachable again from the ? help overlay after dismissal", as
   await installLink.click();
   await expect(hint).toBeVisible();
 });
+
+test("install hint: Add button triggers the native prompt when the browser offers one", async ({ page }) => {
+  await page.goto("/");
+  const hint = page.locator("#installhint");
+  const addBtn = page.locator("#installhint-add");
+  await expect(hint).toBeVisible();
+  await expect(addBtn).toBeHidden();
+
+  // Playwright's headless Chromium never dispatches a real beforeinstallprompt
+  // (installability heuristics aren't met in a test run) — simulate the
+  // browser offering one, the same shape main.js's listener expects.
+  await page.evaluate(() => {
+    const evt = new Event("beforeinstallprompt", { cancelable: true });
+    evt.prompt = () => { window.__promptCalled = true; };
+    evt.userChoice = Promise.resolve({ outcome: "accepted" });
+    window.dispatchEvent(evt);
+  });
+  await expect(addBtn).toBeVisible();
+
+  await addBtn.click();
+  await expect(hint).toBeHidden();
+  expect(await page.evaluate(() => window.__promptCalled)).toBe(true);
+});
+
+test.describe("iOS Safari", () => {
+  test.use({
+    userAgent:
+      "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
+  });
+
+  test("install hint falls back to Share-sheet instructions; no Add button", async ({ page }) => {
+    await page.goto("/");
+    const hint = page.locator("#installhint");
+    await expect(hint).toBeVisible();
+    await expect(page.locator("#installhint-text")).toHaveText('Tap Share, then "Add to Home Screen" 🌅');
+    await expect(page.locator("#installhint-add")).toBeHidden();
+  });
+});

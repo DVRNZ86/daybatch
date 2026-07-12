@@ -10,6 +10,17 @@ import { initLexi } from "./games/lexi.js";
 
 initUI();
 
+// B4: capture the browser's native install prompt as early as possible —
+// Chrome/Edge on Android/desktop can fire this within moments of load, and a
+// listener attached later can miss it. preventDefault() suppresses the
+// browser's own mini-infobar so our own banner/link stays the single UI.
+let deferredInstallPrompt = null;
+window.addEventListener("beforeinstallprompt", (e) => {
+  e.preventDefault();
+  deferredInstallPrompt = e;
+  document.getElementById("installhint-add").classList.remove("hide");
+});
+
 // tabs + lazy init (heavy generators must not block first paint)
 const INIT={tally:initTally,crossing:initCrossing,sonar:initSonar,codebreak:initCodebreak,lexi:initLexi},DONE={};
 function ensureInit(t){ if(!DONE[t]&&INIT[t]){ DONE[t]=1; try{INIT[t]();}catch(e){} } }
@@ -74,9 +85,36 @@ if ("serviceWorker" in navigator) {
 // a link in the ? help overlay (every game shares the same overlay) for
 // anyone who dismissed it and later wants to install. Skipped entirely when
 // already running installed (standalone): nothing to prompt for.
+//
+// The Add button only does something real on browsers that expose
+// beforeinstallprompt (Chrome/Edge, Android + desktop) — it stays hidden
+// until that event actually fires. iOS Safari has no such API at all, so
+// there is nothing to wire a button to; the banner instead falls back to
+// the manual Share-sheet instructions.
 const isStandalone = matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
 const hintEl = document.getElementById("installhint");
+const hintAddEl = document.getElementById("installhint-add");
 document.getElementById("installhint-x").onclick = () => hintEl.classList.add("hide");
+
+if (isIOS) {
+  document.getElementById("installhint-text").textContent = "Tap Share, then \"Add to Home Screen\" 🌅";
+} else {
+  hintAddEl.onclick = async () => {
+    if (!deferredInstallPrompt) return;
+    deferredInstallPrompt.prompt();
+    await deferredInstallPrompt.userChoice;
+    deferredInstallPrompt = null;
+    hintEl.classList.add("hide");
+    hintAddEl.classList.add("hide");
+  };
+}
+
+window.addEventListener("appinstalled", () => {
+  hintEl.classList.add("hide");
+  document.getElementById("h-install").classList.add("hide");
+});
+
 if (!isStandalone) {
   const installLinkEl = document.getElementById("h-install");
   installLinkEl.classList.remove("hide");

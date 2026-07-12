@@ -238,7 +238,11 @@
   padding:8px 12px; font-weight:600; font-size:13px;
 }
 #installhint span { flex:1; }
-#installhint button {
+#installhint-add {
+  padding:8px 12px; border:none; border-radius:10px; background:var(--ink);
+  color:#fff; font-weight:600; font-family:inherit; font-size:13px; cursor:pointer;
+}
+#installhint-x {
   padding:8px 12px; border:none; border-radius:10px; background:transparent;
   color:var(--faded); font-weight:600; font-family:inherit; font-size:13px; cursor:pointer;
 }
