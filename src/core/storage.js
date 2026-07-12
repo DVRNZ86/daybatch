@@ -100,6 +100,16 @@ export function getHistory() {
   return loadRoot().history.slice();
 }
 
+// ---- B4: one-time install hint ----
+// Optional additive field on the schema-1 root; absent means "not shown yet".
+// No schema bump or migration needed.
+
+export function getInstallHintShown() { return loadRoot().installHintShown === true; }
+export function setInstallHintShown() {
+  loadRoot().installHintShown = true;
+  saveRoot();
+}
+
 // ---- rollover bookkeeping ----
 
 export function getLastSeenDate() { return loadRoot().lastSeenDate; }
