@@ -1,0 +1,8 @@
+<svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <!-- Daybatch "D." mark, variant A (ink on paper), approved by Darren 12 Jul 2026.
+       Pure geometry, no font dependency. Source of truth for tests/tools/generate-icons.mjs. -->
+  <rect width="512" height="512" fill="#EDF1F6"/>
+  <path fill="#0B1F33" fill-rule="evenodd"
+    d="M96,122 H170 A134,134 0 0 1 170,390 H96 Z M170,196 A60,60 0 0 1 170,316 L170,196 Z"/>
+  <circle fill="#FF5714" cx="372" cy="346" r="44"/>
+</svg>
