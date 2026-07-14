@@ -2,8 +2,9 @@
 // Ported verbatim from v13. DOM lookups happen in initUI() (called once from
 // main.js) so game modules stay importable in Node for logic tests.
 import { shareText, batchCard, gameLine, puzzleLabel, isPreseason, PRESEASON_NOTE } from "./share.js";
-import { getHistory, localDateKey } from "./storage.js";
+import { getHistory, localDateKey, getEntitlement, isPremium } from "./storage.js";
 import { GAMES, dayScore, batchStreak, recordsFor, isPerfectBatch, perfectStreak } from "./streaks.js";
+import { redeemCode } from "./entitlement.js";
 
 export function el(html){const t=document.createElement("template");t.innerHTML=html.trim();return t.content.firstChild;}
 
@@ -80,11 +81,30 @@ export function showResult(ctx){ // {win,title,line,share,onAgain,slimHost}
 }
 
 let helpov;
-export function showHelp(html){document.getElementById("h-body").innerHTML=html;helpov.classList.add("show");}
+export function showHelp(html){document.getElementById("h-body").innerHTML=html;refreshPremiumStatus();helpov.classList.add("show");}
 
+// D1: reflects current entitlement in the help overlay's premium row —
+// called on boot, whenever the help overlay opens, and after a redemption.
+export function refreshPremiumStatus(){
+  const statusEl=document.getElementById("h-premium-status");
+  const openBtn=document.getElementById("h-premium-open");
+  if(!statusEl||!openBtn)return;
+  if(isPremium()){
+    const tier=getEntitlement().tier;
+    const label=tier==="lifetime"?"Premium · Lifetime":tier==="yearly"?"Premium · Annual":"Premium · Monthly";
+    statusEl.textContent=label;
+    openBtn.textContent="Manage";
+  } else {
+    statusEl.textContent="Free plan";
+    openBtn.textContent="Unlock premium";
+  }
+}
+
+let premiumov;
 export function initUI(){
   overlay=document.getElementById("overlay");modal=document.getElementById("modal");
   helpov=document.getElementById("helpov");
+  premiumov=document.getElementById("premiumov");
   document.getElementById("m-close").onclick=()=>overlay.classList.remove("show");
   overlay.onclick=(e)=>{if(e.target===overlay)overlay.classList.remove("show");};
   document.getElementById("m-copy").onclick=async()=>{
@@ -97,4 +117,29 @@ export function initUI(){
   document.getElementById("m-again").onclick=()=>{overlay.classList.remove("show");modalCtx&&modalCtx.onAgain();};
   document.getElementById("h-close").onclick=()=>helpov.classList.remove("show");
   helpov.onclick=(e)=>{if(e.target===helpov)helpov.classList.remove("show");};
+
+  document.getElementById("h-premium-open").onclick=()=>{
+    document.getElementById("pm-msg").textContent="";
+    document.getElementById("pm-msg").className="";
+    premiumov.classList.add("show");
+  };
+  document.getElementById("pm-close").onclick=()=>premiumov.classList.remove("show");
+  premiumov.onclick=(e)=>{if(e.target===premiumov)premiumov.classList.remove("show");};
+  document.getElementById("pm-redeem").onclick=async()=>{
+    const input=document.getElementById("pm-code");
+    const msg=document.getElementById("pm-msg");
+    const btn=document.getElementById("pm-redeem");
+    btn.disabled=true;msg.textContent="Checking…";msg.className="";
+    const r=await redeemCode(input.value);
+    btn.disabled=false;
+    if(r.ok){
+      msg.textContent="Unlocked ✓";msg.className="ok";
+      input.value="";
+      refreshPremiumStatus();
+      setTimeout(()=>premiumov.classList.remove("show"),1200);
+    } else {
+      msg.textContent=r.error;msg.className="err";
+    }
+  };
+  refreshPremiumStatus();
 }
