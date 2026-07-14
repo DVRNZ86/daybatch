@@ -3,13 +3,16 @@
 // tests; initTally() wires the DOM.
 import { mulberry32, dailySeed } from "../core/rng.js";
 import { showResult, showHelp, showSlimBar } from "../core/ui.js";
-import { getGameState, setGameState, addHistory, localDateKey } from "../core/storage.js";
+import { getGameState, setGameState, addHistory, localDateKey, isPremium, getBestTime, setBestTime } from "../core/storage.js";
+import { createStopwatch, formatMs } from "../core/timer.js";
 import { SITE_URL } from "../core/share.js";
 
 const SIZE=5,N=25,START=0,END=24;
 let pane;
 let puz,path,attempts,status,isDaily,dragging=false,seedCur,dateCur;
 let elGrid,elTotal,elTries,boardEl;
+let timed=false; // D1: Timed mode (premium)
+const stopwatch=createStopwatch();
 
 export function neighbors(i){
   const r=Math.floor(i/SIZE),c=i%SIZE,out=[];
@@ -74,10 +77,19 @@ function evalPath(){
 }
 const TY_HELP=`<b>Drag a path</b> from START to END through numbers and operators. Your total runs left to right as you draw — land on END with <b>exactly the target</b>.<br><br><b>BEST</b> is the shortest possible winning path — match it for a perfect ⛳.<br><br>Retrace your line to undo. You can also tap an adjacent cell to extend. Unlimited tries, but they're counted.`;
 function load(seed,daily){
-  isDaily=daily;seedCur=seed;dateCur=localDateKey();
+  isDaily=daily;timed=false;seedCur=seed;dateCur=localDateKey();
   puz=gen(seed);
   if(!puz){puz=gen(Math.floor(Math.random()*1e9));}
   path=[START];attempts=0;status="play";buildDOM();
+}
+// D1: Timed mode (premium) — ephemeral like practice, never touches
+// history/streaks (finish() only records when isDaily, which stays false).
+function startTimed(){
+  isDaily=false;timed=true;seedCur=Math.floor(Math.random()*1e9);dateCur=localDateKey();
+  puz=gen(seedCur);
+  if(!puz)puz=gen(Math.floor(Math.random()*1e9));
+  path=[START];attempts=0;status="play";buildDOM();
+  stopwatch.start(ms=>{const el=document.getElementById("ty-timer");if(el)el.textContent=formatMs(ms);});
 }
 // B2 persistence: daily games snapshot on every mutation; practice is ephemeral.
 function persist(){
@@ -92,7 +104,7 @@ function openDaily(){
   if(s&&s.date===localDateKey()&&s.seed===sd){
     puz=gen(s.seed);
     if(!puz){load(sd,true);return;} // seed failed to generate: snapshot can't be trusted
-    isDaily=true;seedCur=s.seed;dateCur=s.date;
+    isDaily=true;timed=false;seedCur=s.seed;dateCur=s.date;
     path=s.path;attempts=s.attempts;status=s.status;
     buildDOM();
     elTries.textContent=attempts;
@@ -110,6 +122,7 @@ function buildDOM(){
     if(i===END)tag='<span class="tag">END</span>';
     cells+=`<div class="tc ${c.type}" data-i="${i}">${c.value}${tag}</div>`;
   }
+  const timerStat=timed?`<div class="stat"><div class="lb">TIME</div><div class="vl" id="ty-timer" style="color:var(--marker)">${formatMs(stopwatch.elapsed())}</div></div>`:"";
   pane.innerHTML=`
     <div class="stats">
       <button class="helpbtn" id="ty-help">?</button>
@@ -117,6 +130,7 @@ function buildDOM(){
       <div class="stat big"><div class="lb">RUNNING</div><div class="vl" id="ty-total">—</div></div>
       <div class="stat"><div class="lb">BEST</div><div class="vl">${puz.par}</div></div>
       <div class="stat"><div class="lb">TRIES</div><div class="vl" id="ty-tries">0</div></div>
+      ${timerStat}
     </div>
     <div class="board" id="ty-board">
       <div id="ty-grid">${cells}</div>
@@ -129,6 +143,7 @@ function buildDOM(){
       <button class="btn" id="ty-clear">Clear path</button>
       <button class="btn" id="ty-new">New puzzle</button>
       <button class="btn pri" id="ty-today">Today's</button>
+      ${isPremium()?'<button class="btn" id="ty-timed">⏱ Timed</button>':""}
     </div>
     <div class="slimhost"></div>`;
   boardEl=pane.querySelector("#ty-board");
@@ -139,6 +154,7 @@ function buildDOM(){
   pane.querySelector("#ty-clear").onclick=()=>{path=[START];updatePath();};
   pane.querySelector("#ty-new").onclick=()=>load(Math.floor(Math.random()*1e9),false);
   pane.querySelector("#ty-today").onclick=()=>openDaily();
+  const timedBtn=pane.querySelector("#ty-timed");if(timedBtn)timedBtn.onclick=()=>startTimed();
   boardEl.addEventListener("touchmove",e=>e.preventDefault(),{passive:false});
   boardEl.addEventListener("pointerdown",onDown);
   boardEl.addEventListener("pointermove",onMove);
@@ -186,7 +202,7 @@ function onUp(){
   if(path[path.length-1]===END){
     attempts++;elTries.textContent=attempts;
     const t=evalPath().total;
-    if(t===puz.target){status="win";persist();updatePath();finish();}
+    if(t===puz.target){status="win";if(timed)stopwatch.stop();persist();updatePath();finish();}
     else{persist();boardEl.classList.remove("shakeX");void boardEl.offsetWidth;boardEl.classList.add("shakeX");}
   }
 }
@@ -214,6 +230,18 @@ function updatePath(){
 function result(){
   const moves=path.length;
   const label=moves<=puz.par&&attempts===1?"Perfect! ⛳":moves<=puz.par?"Best path! ⛳":"Solved!";
+  if(timed){
+    const elapsed=stopwatch.elapsed();
+    const best=getBestTime("tally");
+    const isNewBest=best===null||elapsed<best;
+    if(isNewBest)setBestTime("tally",elapsed);
+    const t=formatMs(elapsed);
+    const share="DAYBATCH · TALLY ⏱ Timed 🎯 "+puz.target+"\n"+t+(isNewBest?" — new best! 🏆":"")+"\n"+SITE_URL;
+    return{win:true,title:label,
+      line:t+(isNewBest?" — new best!":" · best "+formatMs(best)),share,
+      onAgain:()=>startTimed(),
+      slimHost:pane.querySelector(".slimhost")};
+  }
   const share="DAYBATCH · TALLY 🧮 "+label+" 🎯 "+puz.target+"\nPath "+moves+" · Best "+puz.par+(moves<=puz.par?" ⛳":" (+"+(moves-puz.par)+")")+"\nTries: "+attempts+"\n"+SITE_URL; // B3 link footer
   return{win:true,title:label,
     line:"Path "+moves+" · Best "+puz.par+" · Tries "+attempts,share,

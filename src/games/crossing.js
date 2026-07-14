@@ -2,13 +2,16 @@
 // gen() is exported for logic tests; initCrossing() wires the DOM.
 import { mulberry32, dailySeed } from "../core/rng.js";
 import { showResult, showHelp, showSlimBar } from "../core/ui.js";
-import { getGameState, setGameState, addHistory, localDateKey, isPremium, getCrossingEndlessBest, setCrossingEndlessBest } from "../core/storage.js";
+import { getGameState, setGameState, addHistory, localDateKey, isPremium, getCrossingEndlessBest, setCrossingEndlessBest, getBestTime, setBestTime } from "../core/storage.js";
+import { createStopwatch, formatMs } from "../core/timer.js";
 import { SITE_URL } from "../core/share.js";
 
 const ROWS=7,COLS=5;
 let pane;
 let puz,pos,seen,boomed,lives,steps,status,seed,isDaily,dateCur;
 let endless=false,boardsCleared=0; // D1: Endless Crossing (premium)
+let timed=false; // D1: Timed mode (premium)
+const stopwatch=createStopwatch();
 
 export function gen(sd){
   const rng=mulberry32(sd);
@@ -79,7 +82,15 @@ function cascade(idx){
 }
 function load(sd,daily){
   seed=sd;isDaily=daily;dateCur=localDateKey();puz=gen(sd);pos=null;seen=new Set();boomed=new Set();
-  lives=3;steps=0;status="play";endless=false;persist();render();
+  lives=3;steps=0;status="play";endless=false;timed=false;persist();render();
+}
+// D1: Timed mode (premium) — ephemeral like practice, never touches
+// history/streaks (finish() only records when isDaily, which stays false).
+function startTimed(){
+  seed=Math.floor(Math.random()*1e9);isDaily=false;endless=false;timed=true;dateCur=localDateKey();
+  puz=gen(seed);pos=null;seen=new Set();boomed=new Set();lives=3;steps=0;status="play";
+  stopwatch.start(ms=>{const el=document.getElementById("cr-timer");if(el)el.textContent=formatMs(ms);});
+  render();
 }
 // D1: Endless Crossing (premium) — continuous boards on shared lives; only
 // ends when lives hit 0. Ephemeral like practice: never persisted, never
@@ -106,7 +117,7 @@ function openDaily(){
   const sd=dailySeed("crossing");
   const s=getGameState("crossing");
   if(s&&s.date===localDateKey()&&s.seed===sd){
-    seed=s.seed;isDaily=true;dateCur=s.date;puz=gen(seed);pos=s.pos;seen=new Set(s.seen);boomed=new Set(s.boomed);
+    seed=s.seed;isDaily=true;endless=false;timed=false;dateCur=s.date;puz=gen(seed);pos=s.pos;seen=new Set(s.seen);boomed=new Set(s.boomed);
     lives=s.lives;steps=s.steps;status=s.status;render();
     if(status!=="play")showSlimBar(result());
     return;
@@ -124,17 +135,35 @@ function tap(i){
   steps++;
   if(puz.traps.has(i)){
     boomed.add(i);lives--;
-    if(lives<=0){status="fail";persist();render();finish();return;}
+    if(lives<=0){status="fail";if(timed)stopwatch.stop();persist();render();finish();return;}
     persist();render();return;
   }
   cascade(i);pos=i;
   if(Math.floor(i/COLS)===ROWS-1){
     if(endless){boardsCleared++;nextEndlessBoard();return;}
-    status="win";persist();render();finish();return;
+    status="win";if(timed)stopwatch.stop();persist();render();finish();return;
   }
   persist();render();
 }
 function result(){
+  if(timed){
+    const elapsed=stopwatch.elapsed();
+    const label=status!=="win"?"Blown up 💥":lives===3?"Flawless crossing!":lives===2?"Made it!":"By a whisker!";
+    if(status!=="win"){
+      const share="DAYBATCH · CROSSING ⏱ Timed\nDidn't make it — "+formatMs(elapsed)+"\n"+SITE_URL;
+      return{win:false,title:label,line:"Didn't make it — "+formatMs(elapsed),share,
+        onAgain:()=>startTimed(),slimHost:pane.querySelector(".slimhost")};
+    }
+    const best=getBestTime("crossing");
+    const isNewBest=best===null||elapsed<best;
+    if(isNewBest)setBestTime("crossing",elapsed);
+    const t=formatMs(elapsed);
+    const share="DAYBATCH · CROSSING ⏱ Timed\n"+t+(isNewBest?" — new best! 🏆":"")+"\n"+SITE_URL;
+    return{win:true,title:label,
+      line:t+(isNewBest?" — new best!":" · best "+formatMs(best)),share,
+      onAgain:()=>startTimed(),
+      slimHost:pane.querySelector(".slimhost")};
+  }
   if(endless){
     const best=getCrossingEndlessBest();
     const isNewBest=boardsCleared>best;
@@ -176,20 +205,22 @@ function render(){
   }
   const midStat=endless
     ?`<div class="stat"><div class="lb">BOARDS</div><div class="vl">${boardsCleared}</div></div>`
+    :timed
+    ?`<div class="stat"><div class="lb">TIME</div><div class="vl" id="cr-timer" style="color:var(--marker)">${formatMs(stopwatch.elapsed())}</div></div>`
     :`<div class="stat"><div class="lb">STEPS</div><div class="vl">${steps}</div></div>`;
   pane.innerHTML=`
     <div class="stats">
       <button class="helpbtn" id="cr-help">?</button>
       <div class="stat big"><div class="lb">LIVES</div><div class="vl">${"❤️".repeat(lives)}${"🖤".repeat(3-lives)}</div></div>
       ${midStat}
-      <div class="stat"><div class="lb">MODE</div><div class="vl" style="color:var(--faded)">${endless?"ENDLESS":isDaily?"DAILY":"PRAC"}</div></div>
+      <div class="stat"><div class="lb">MODE</div><div class="vl" style="color:var(--faded)">${endless?"ENDLESS":timed?"TIMED":isDaily?"DAILY":"PRAC"}</div></div>
     </div>
     <div class="board"><div id="cr-grid">${cells}</div></div>
     <div class="btnrow">
-      ${isDaily||endless?"":'<button class="btn" id="cr-retry">Retry</button>'}
+      ${isDaily||endless||timed?"":'<button class="btn" id="cr-retry">Retry</button>'}
       <button class="btn" id="cr-new">New puzzle</button>
       <button class="btn pri" id="cr-today">Today's</button>
-      ${isPremium()?'<button class="btn" id="cr-endless">♾️ Endless</button>':""}
+      ${isPremium()?'<button class="btn" id="cr-endless">♾️ Endless</button><button class="btn" id="cr-timed">⏱ Timed</button>':""}
     </div>
     <div class="slimhost"></div>`;
   pane.querySelectorAll("#cr-grid button").forEach(b=>b.onclick=()=>tap(+b.dataset.i));
@@ -200,6 +231,7 @@ function render(){
   pane.querySelector("#cr-new").onclick=()=>load(Math.floor(Math.random()*1e9),false);
   pane.querySelector("#cr-today").onclick=()=>openDaily();
   const endlessBtn=pane.querySelector("#cr-endless");if(endlessBtn)endlessBtn.onclick=()=>startEndless();
+  const timedBtn=pane.querySelector("#cr-timed");if(timedBtn)timedBtn.onclick=()=>startTimed();
 }
 export function initCrossing(){
   pane=document.getElementById("pane-crossing");

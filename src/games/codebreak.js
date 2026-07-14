@@ -2,7 +2,8 @@
 // gen() is exported for logic tests; initCodebreak() wires the DOM.
 import { mulberry32, dailySeed } from "../core/rng.js";
 import { showResult, showHelp, showSlimBar } from "../core/ui.js";
-import { getGameState, setGameState, addHistory, localDateKey, isPremium } from "../core/storage.js";
+import { getGameState, setGameState, addHistory, localDateKey, isPremium, getBestTime, setBestTime } from "../core/storage.js";
+import { createStopwatch, formatMs } from "../core/timer.js";
 import { SITE_URL } from "../core/share.js";
 
 const SYMS=[["tri","#E4572E"],["cir","#2E86FF"],["sq","#0FB360"],["dia","#8B5CF6"],["star","#F5A800"],["pen","#E5484D"],["plus","#0FA3A3"]];
@@ -11,6 +12,8 @@ const REPEAT_MAXG=10; // D1: Codebreak: Repeats (premium) — IDEAS.md spec
 let pane;
 let code,guesses,current,status,isDaily;
 let repeats=false; // D1: Codebreak: Repeats (premium)
+let timed=false; // D1: Timed mode (premium)
+const stopwatch=createStopwatch();
 
 export function gen(sd){
   const rng=mulberry32(sd);
@@ -54,12 +57,20 @@ const BG={green:"var(--win)",amber:"var(--amber)",grey:"#CBD5E1"};
 const EMO={green:"🟩",amber:"🟨",grey:"⬜"};
 const CB_HELP=`Crack the hidden <b>5-shape code</b> — no shape repeats.<br><br>After each guess your shapes recolour to show the verdict:<br><b style="color:var(--win)">green</b> — right symbol, right slot<br><b style="color:var(--amber)">amber</b> — in the code, wrong slot<br><b>grey</b> — not in the code<br><br>The keyboard remembers what you've learned: eliminated shapes turn grey, confirmed ones get a coloured underline. You have <b>8 guesses</b>.`;
 let seed,dateCur;
-function load(sd,daily){seed=sd;isDaily=daily;repeats=false;dateCur=localDateKey();code=gen(sd);guesses=[];current=[];status="play";persist();render();}
+function load(sd,daily){seed=sd;isDaily=daily;repeats=false;timed=false;dateCur=localDateKey();code=gen(sd);guesses=[];current=[];status="play";persist();render();}
 // D1: Codebreak: Repeats (premium) — ephemeral like practice, never touches
 // history/streaks (finish() only records when isDaily, which stays false).
 function loadRepeats(){
-  seed=Math.floor(Math.random()*1e9);isDaily=false;repeats=true;dateCur=localDateKey();
+  seed=Math.floor(Math.random()*1e9);isDaily=false;repeats=true;timed=false;dateCur=localDateKey();
   code=genRepeats(seed);guesses=[];current=[];status="play";render();
+}
+// D1: Timed mode (premium) — ephemeral like practice, never touches
+// history/streaks (finish() only records when isDaily, which stays false).
+function loadTimed(){
+  seed=Math.floor(Math.random()*1e9);isDaily=false;repeats=false;timed=true;dateCur=localDateKey();
+  code=gen(seed);guesses=[];current=[];status="play";
+  stopwatch.start(ms=>{const el=document.getElementById("cb-timer");if(el)el.textContent=formatMs(ms);});
+  render();
 }
 // B2 persistence: daily games snapshot on every mutation; practice is ephemeral.
 function persist(){
@@ -72,7 +83,7 @@ function openDaily(){
   const sd=dailySeed("codebreak");
   const s=getGameState("codebreak");
   if(s&&s.date===localDateKey()&&s.seed===sd){
-    seed=s.seed;isDaily=true;repeats=false;dateCur=s.date;code=gen(seed);guesses=s.guesses;current=s.current;status=s.status;render();
+    seed=s.seed;isDaily=true;repeats=false;timed=false;dateCur=s.date;code=gen(seed);guesses=s.guesses;current=s.current;status=s.status;render();
     if(status!=="play")showSlimBar(result());
     return;
   }
@@ -84,8 +95,8 @@ function submit(){
   const solved=current.every((s,i)=>s===code[i]);
   current=[];
   const maxG=repeats?REPEAT_MAXG:MAXG;
-  if(solved){status="win";persist();render();finish();return;}
-  if(guesses.length>=maxG){status="fail";persist();render();finish();return;}
+  if(solved){status="win";if(timed)stopwatch.stop();persist();render();finish();return;}
+  if(guesses.length>=maxG){status="fail";if(timed)stopwatch.stop();persist();render();finish();return;}
   persist();render();
 }
 function result(){
@@ -95,6 +106,23 @@ function result(){
     g<=(repeats?3:2)?"Mastermind! 🧠":
     g<=(repeats?5:4)?"Cracked it!":
     g<=(repeats?7:6)?"Solid solve":"Close call!";
+  if(timed){
+    const elapsed=stopwatch.elapsed();
+    if(status!=="win"){
+      const share="DAYBATCH · CODEBREAK ⏱ Timed\nLocked out — "+formatMs(elapsed)+"\n"+SITE_URL;
+      return{win:false,title:label,line:"Locked out — "+formatMs(elapsed),share,
+        onAgain:()=>loadTimed(),slimHost:pane.querySelector(".slimhost")};
+    }
+    const best=getBestTime("codebreak");
+    const isNewBest=best===null||elapsed<best;
+    if(isNewBest)setBestTime("codebreak",elapsed);
+    const t=formatMs(elapsed);
+    const share="DAYBATCH · CODEBREAK ⏱ Timed\n"+t+(isNewBest?" — new best! 🏆":"")+"\n"+SITE_URL;
+    return{win:true,title:label,
+      line:t+(isNewBest?" — new best!":" · best "+formatMs(best)),share,
+      onAgain:()=>loadTimed(),
+      slimHost:pane.querySelector(".slimhost")};
+  }
   const share="DAYBATCH · CODEBREAK"+(repeats?": REPEATS 🔁 ":" 🔐 ")+label+" "+(status==="win"?g:"X")+"/"+maxG+"\n"+
     guesses.map(gu=>{const v=verdictRow(gu);return gu.map((_,i)=>EMO[v[i]]).join("");}).join("\n")+"\n"+SITE_URL; // B3 link footer
   return{win:status==="win",title:label,
@@ -154,18 +182,20 @@ function render(){
       <button class="btn pri" id="cb-sub" ${current.length!==LEN?"disabled":""}>Submit guess</button>
     </div>`;
   }
+  const timerStat=timed?`<div class="stat"><div class="lb">TIME</div><div class="vl" id="cb-timer" style="color:var(--marker)">${formatMs(stopwatch.elapsed())}</div></div>`:"";
   pane.innerHTML=`
     <div class="stats">
       <button class="helpbtn" id="cb-help">?</button>
       <div class="stat big"><div class="lb">GUESSES</div><div class="vl" style="color:var(--marker)">${guesses.length}/${maxG}</div></div>
-      <div class="stat"><div class="lb">MODE</div><div class="vl" style="color:var(--faded)">${repeats?"REPEATS":isDaily?"DAILY":"PRAC"}</div></div>
+      ${timerStat}
+      <div class="stat"><div class="lb">MODE</div><div class="vl" style="color:var(--faded)">${repeats?"REPEATS":timed?"TIMED":isDaily?"DAILY":"PRAC"}</div></div>
     </div>
     <div class="board"><div class="cb-rows">${rows}${inputRow}</div></div>
     ${keys}
     <div class="btnrow">
       <button class="btn" id="cb-new">New puzzle</button>
       <button class="btn pri" id="cb-today">Today's</button>
-      ${isPremium()?'<button class="btn" id="cb-repeats">🔁 Repeats</button>':""}
+      ${isPremium()?'<button class="btn" id="cb-repeats">🔁 Repeats</button><button class="btn" id="cb-timed">⏱ Timed</button>':""}
     </div>
     <div class="slimhost"></div>`;
   pane.querySelectorAll(".cb-keys button").forEach(b=>b.onclick=()=>{
@@ -181,6 +211,7 @@ function render(){
   pane.querySelector("#cb-new").onclick=()=>load(Math.floor(Math.random()*1e9),false);
   pane.querySelector("#cb-today").onclick=()=>openDaily();
   const repBtn=pane.querySelector("#cb-repeats");if(repBtn)repBtn.onclick=()=>loadRepeats();
+  const timedBtn=pane.querySelector("#cb-timed");if(timedBtn)timedBtn.onclick=()=>loadTimed();
 }
 export function initCodebreak(){
   pane=document.getElementById("pane-codebreak");
