@@ -30,7 +30,7 @@
   2. The `isDaily`-style boolean pattern in game modules (daily vs. practice) stays generalizable to a third variant — e.g. a premium hard-mode — rather than hardcoded to two states. Don't refactor for this now; just don't paint it into a corner.
   3. No phase adds a backend, accounts, or payment SDK without Darren's explicit sign-off — this is the existing no-new-dependencies rule, restated because monetization is the most likely reason someone reaches for one.
   4. B4's install-hint UI is the natural future home for a support/unlock prompt. Noted for B4's builder, not built in B4.
-  5. **Open question, not yet decided:** stay web-only (Stripe-style payment links, no accounts) vs. eventually wrap natively via Capacitor for App/Play Store IAP. B4 ships as a PWA either way; this only matters if/when a native wrap is seriously considered (see IDEAS.md).
+  5. **Decided (Darren, 12 Jul 2026): stay web-only (PWA + Stripe) deliberately, to prove traction before investing in a native wrap.** Not a permanent choice — revisit going native (Capacitor, App/Play Store IAP) only once web/PWA traction justifies the engineering cost (see IDEAS.md).
   The actual monetization model and go-to-market plan is a dedicated discussion after B4/B5 ship — see IDEAS.md Stage D.
 - **A9 — Monetization architecture (Darren, 12 Jul 2026).** Supersedes A8's "non-building" stance with an actual buildable design for Stage D:
   1. Three tiers, all via Stripe (no custom checkout UI): **$2/month**, **$20/year** (recurring subscriptions), **$30 one-time** (lifetime).
