@@ -66,6 +66,16 @@ test("dailySeed rolls over at device-local midnight (Pacific/Auckland pin)", () 
   }
 });
 
+test("dailySeed(game, date) accepts an explicit date for archive replay, matching the device-local convention", () => {
+  // No clock-pinning needed: an explicit date bypasses `new Date()` entirely.
+  assert.equal(dailySeed("crossing", new Date(2026, 6, 10)), hashString("crossing-2026-7-10"));
+  assert.equal(dailySeed("lexi", new Date(2025, 0, 1)), hashString("lexi-2025-1-1"));
+  assert.equal(dailySeed("codebreak", new Date(2024, 1, 29)), hashString("codebreak-2024-2-29")); // leap day
+  // Same seed as an equivalent pinned "now" for today's date — archive of "today" === daily.
+  const today = new Date(2026, 6, 10, 9, 0, 0);
+  assert.equal(dailySeed("tally", today), dailySeed("tally", new Date(2026, 6, 10, 22, 0, 0)));
+});
+
 test("puzzleNumber: EPOCH (10 Sep 2026 launch) day is #1, permanent arithmetic (B3 contract)", async () => {
   const { puzzleNumber, EPOCH } = await import("../../src/core/rng.js");
   assert.deepEqual(EPOCH, [2026, 8, 10]);
