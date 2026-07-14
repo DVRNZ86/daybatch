@@ -110,6 +110,34 @@ export function setInstallHintShown() {
   saveRoot();
 }
 
+// ---- D1: premium entitlement ----
+// Optional additive field on the schema-1 root; absent/null means free tier.
+// No schema bump or migration needed (A2). Shape: {code, tier, verifiedAt,
+// expiresAt} — tier is "monthly" | "yearly" | "lifetime"; expiresAt is null
+// for lifetime, else the next required re-verification timestamp (ms).
+
+export function getEntitlement() {
+  const e = loadRoot().premium;
+  return e === undefined ? null : e;
+}
+
+export function setEntitlement(entitlement) {
+  loadRoot().premium = entitlement;
+  saveRoot();
+}
+
+export function clearEntitlement() {
+  delete loadRoot().premium;
+  saveRoot();
+}
+
+export function isPremium() {
+  const e = getEntitlement();
+  if (!e) return false;
+  if (e.tier === "lifetime") return true;
+  return typeof e.expiresAt === "number" && Date.now() < e.expiresAt;
+}
+
 // ---- rollover bookkeeping ----
 
 export function getLastSeenDate() { return loadRoot().lastSeenDate; }
