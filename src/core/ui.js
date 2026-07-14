@@ -88,8 +88,11 @@ export function showHelp(html){document.getElementById("h-body").innerHTML=html;
 export function refreshPremiumStatus(){
   const statusEl=document.getElementById("h-premium-status");
   const openBtn=document.getElementById("h-premium-open");
+  const badge=document.getElementById("hdr-premium");
+  const premium=isPremium();
+  if(badge)badge.classList.toggle("hide",!premium);
   if(!statusEl||!openBtn)return;
-  if(isPremium()){
+  if(premium){
     const tier=getEntitlement().tier;
     const label=tier==="lifetime"?"Premium · Lifetime":tier==="yearly"?"Premium · Annual":"Premium · Monthly";
     statusEl.textContent=label;
