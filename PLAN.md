@@ -141,16 +141,18 @@ Manifest, icons, standalone display, theme colour; service worker cache-first sh
 **Accept:** installs with proper icon/splash; full airplane-mode launch; new deploy reaches clients within one revisit; Lighthouse PWA green.
 
 ### B5 — Polish & first-run
-One-screen onboarding ("Five puzzles. Every day. That's it."); stats screen (history, records); yesterday's solutions; settings (haptics, colour-blind check); footer version + social handles.
-**Accept:** first-run flow tested; stats reconcile with stored history; no breakage at 320px width.
+One-screen onboarding ("Five puzzles. Every day. That's it."); **stats screen (history, records) and yesterday's solutions are premium-gated (see D1) — build against the real entitlement flag, not a placeholder, since D1 now ships first**; settings (haptics, colour-blind check); footer version + social handles.
+**Accept:** first-run flow tested; stats reconcile with stored history; gated screens correctly locked for free users and unlocked for premium; no breakage at 320px width.
 
 ---
 
 ## Stage D
 
+**Build order (Darren, 12 Jul 2026): D1 ships before B5.** B5's history/stats/yesterday's-solutions screens are premium-gated, so the entitlement flag needs to exist before that UI is built, not retrofitted after.
+
 ### D1 — Monetization core
-Redemption-code entitlement system (Stripe + one serverless verify function, no accounts) per A9; premium gates: timed mode across all five games, Crossing endless mode (Endless Crossing), Codebreak repeated-symbols mode (Codebreak: Repeats), premium-only hints on Sonar and Codebreak.
-**Accept:** purchase→code→redeem works for all three price tiers; lifetime code verifies once then works fully offline; subscription code re-verifies on schedule and correctly revokes on cancellation (with grace-period tolerance); redemption cap of 2 enforced; gated features correctly locked/unlocked; zero accounts or login UI anywhere in the app.
+Redemption-code entitlement system (Stripe + one serverless verify function, no accounts) per A9. **Free tier, permanent: play all five dailies, share the daily result. Everything else is premium:** timed mode across all five games; Crossing endless mode (Endless Crossing); Codebreak repeated-symbols mode (Codebreak: Repeats); premium-only hints on Sonar and Codebreak; **viewing puzzle history/past results (the existing `getHistory()` record) and yesterday's solutions**; **archive access** — a date-picker letting premium users pick any past date and play it as a practice session (puzzles are pure `hash(game+date)` generation, so any past date regenerates on demand at zero storage cost — needs `dailySeed()` generalized to accept an explicit date instead of always `new Date()`). Archive/replay sessions never touch `history` or streaks, same as any other practice session.
+**Accept:** purchase→code→redeem works for all three price tiers; lifetime code verifies once then works fully offline; subscription code re-verifies on schedule and correctly revokes on cancellation (with grace-period tolerance); redemption cap of 2 enforced; all gated features (including history/archive) correctly locked/unlocked; archive date-picker generates any past date's puzzle correctly (seed-identity holds for historical dates too); archive play never mutates history/streaks; zero accounts or login UI anywhere in the app.
 
 ---
 
