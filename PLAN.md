@@ -32,6 +32,14 @@
   4. B4's install-hint UI is the natural future home for a support/unlock prompt. Noted for B4's builder, not built in B4.
   5. **Open question, not yet decided:** stay web-only (Stripe-style payment links, no accounts) vs. eventually wrap natively via Capacitor for App/Play Store IAP. B4 ships as a PWA either way; this only matters if/when a native wrap is seriously considered (see IDEAS.md).
   The actual monetization model and go-to-market plan is a dedicated discussion after B4/B5 ship — see IDEAS.md Stage D.
+- **A9 — Monetization architecture (Darren, 12 Jul 2026).** Supersedes A8's "non-building" stance with an actual buildable design for Stage D:
+  1. Three tiers, all via Stripe (no custom checkout UI): **$2/month**, **$20/year** (recurring subscriptions), **$30 one-time** (lifetime).
+  2. **No accounts, no login.** Entitlement via a redemption code, not identity.
+  3. **Lifetime code:** a signed token (HMAC of the Stripe payment ID + a server-held secret), verified once by one serverless function. Once valid, `premium:true` caches locally forever — no further network needed, consistent with the app's offline-first model.
+  4. **Subscription codes:** represent a live Stripe subscription; the same function re-verifies against Stripe's subscription status periodically (weekly) rather than once. Local cache tolerates ~2 weeks offline before requiring re-verification, so a brief connectivity gap doesn't lock anyone out mid-play.
+  5. **Redemption cap: 2** activations per code (devices, for lifetime; concurrent, for subscriptions) — stops public sharing without needing accounts or real DRM.
+  6. **New dependency, explicitly approved here:** one serverless function (e.g. Cloudflare Worker) + Stripe webhook integration. This is the one deliberate exception to A1's zero-runtime-dependency rule — scoped to payment verification only.
+  7. Gated from day 1 — no free trial window.
 
 ---
 
@@ -135,6 +143,14 @@ Manifest, icons, standalone display, theme colour; service worker cache-first sh
 ### B5 — Polish & first-run
 One-screen onboarding ("Five puzzles. Every day. That's it."); stats screen (history, records); yesterday's solutions; settings (haptics, colour-blind check); footer version + social handles.
 **Accept:** first-run flow tested; stats reconcile with stored history; no breakage at 320px width.
+
+---
+
+## Stage D
+
+### D1 — Monetization core
+Redemption-code entitlement system (Stripe + one serverless verify function, no accounts) per A9; premium gates: timed mode across all five games, Crossing endless mode (Endless Crossing), Codebreak repeated-symbols mode (Codebreak: Repeats), premium-only hints on Sonar and Codebreak.
+**Accept:** purchase→code→redeem works for all three price tiers; lifetime code verifies once then works fully offline; subscription code re-verifies on schedule and correctly revokes on cancellation (with grace-period tolerance); redemption cap of 2 enforced; gated features correctly locked/unlocked; zero accounts or login UI anywhere in the app.
 
 ---
 
