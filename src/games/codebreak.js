@@ -2,13 +2,15 @@
 // gen() is exported for logic tests; initCodebreak() wires the DOM.
 import { mulberry32, dailySeed } from "../core/rng.js";
 import { showResult, showHelp, showSlimBar } from "../core/ui.js";
-import { getGameState, setGameState, addHistory, localDateKey } from "../core/storage.js";
+import { getGameState, setGameState, addHistory, localDateKey, isPremium } from "../core/storage.js";
 import { SITE_URL } from "../core/share.js";
 
 const SYMS=[["tri","#E4572E"],["cir","#2E86FF"],["sq","#0FB360"],["dia","#8B5CF6"],["star","#F5A800"],["pen","#E5484D"],["plus","#0FA3A3"]];
 const LEN=5,MAXG=8;
+const REPEAT_MAXG=10; // D1: Codebreak: Repeats (premium) — IDEAS.md spec
 let pane;
 let code,guesses,current,status,isDaily;
+let repeats=false; // D1: Codebreak: Repeats (premium)
 
 export function gen(sd){
   const rng=mulberry32(sd);
@@ -16,16 +18,49 @@ export function gen(sd){
   for(let i=idx.length-1;i>0;i--){const j=Math.floor(rng()*(i+1));const t=idx[i];idx[i]=idx[j];idx[j]=t;}
   return idx.slice(0,LEN);
 }
+// D1: Codebreak: Repeats — symbols may repeat (7^5 = 16,807 codes).
+export function genRepeats(sd){
+  const rng=mulberry32(sd);
+  const out=[];
+  for(let i=0;i<LEN;i++)out.push(Math.floor(rng()*SYMS.length));
+  return out;
+}
 function slotState(g,i){
   if(g[i]===code[i])return"green";
   if(code.indexOf(g[i])>=0)return"amber";
   return"grey";
 }
+// D1: Repeats-mode verdicts need duplicate-letter Wordle rules (a repeated
+// guessed symbol can't out-count how many times it actually appears in the
+// code) — pure and exported for direct testing. verdictRow (below) is the
+// live-state wrapper; kept fully separate from slotState so daily/practice —
+// where the code and guesses never contain duplicates — is untouched
+// byte-for-byte.
+export function duplicateVerdict(g,codeArr){
+  const result=new Array(g.length).fill("grey");
+  const codeCount={};
+  for(let i=0;i<g.length;i++){
+    if(g[i]===codeArr[i])result[i]="green";
+    else codeCount[codeArr[i]]=(codeCount[codeArr[i]]||0)+1;
+  }
+  for(let i=0;i<g.length;i++){
+    if(result[i]==="green")continue;
+    if(codeCount[g[i]]>0){result[i]="amber";codeCount[g[i]]--;}
+  }
+  return result;
+}
+function verdictRow(g){return repeats?duplicateVerdict(g,code):g.map((_,i)=>slotState(g,i));}
 const BG={green:"var(--win)",amber:"var(--amber)",grey:"#CBD5E1"};
 const EMO={green:"🟩",amber:"🟨",grey:"⬜"};
 const CB_HELP=`Crack the hidden <b>5-shape code</b> — no shape repeats.<br><br>After each guess your shapes recolour to show the verdict:<br><b style="color:var(--win)">green</b> — right symbol, right slot<br><b style="color:var(--amber)">amber</b> — in the code, wrong slot<br><b>grey</b> — not in the code<br><br>The keyboard remembers what you've learned: eliminated shapes turn grey, confirmed ones get a coloured underline. You have <b>8 guesses</b>.`;
 let seed,dateCur;
-function load(sd,daily){seed=sd;isDaily=daily;dateCur=localDateKey();code=gen(sd);guesses=[];current=[];status="play";persist();render();}
+function load(sd,daily){seed=sd;isDaily=daily;repeats=false;dateCur=localDateKey();code=gen(sd);guesses=[];current=[];status="play";persist();render();}
+// D1: Codebreak: Repeats (premium) — ephemeral like practice, never touches
+// history/streaks (finish() only records when isDaily, which stays false).
+function loadRepeats(){
+  seed=Math.floor(Math.random()*1e9);isDaily=false;repeats=true;dateCur=localDateKey();
+  code=genRepeats(seed);guesses=[];current=[];status="play";render();
+}
 // B2 persistence: daily games snapshot on every mutation; practice is ephemeral.
 function persist(){
   if(!isDaily)return;
@@ -37,7 +72,7 @@ function openDaily(){
   const sd=dailySeed("codebreak");
   const s=getGameState("codebreak");
   if(s&&s.date===localDateKey()&&s.seed===sd){
-    seed=s.seed;isDaily=true;dateCur=s.date;code=gen(seed);guesses=s.guesses;current=s.current;status=s.status;render();
+    seed=s.seed;isDaily=true;repeats=false;dateCur=s.date;code=gen(seed);guesses=s.guesses;current=s.current;status=s.status;render();
     if(status!=="play")showSlimBar(result());
     return;
   }
@@ -48,18 +83,23 @@ function submit(){
   guesses.push(current.slice());
   const solved=current.every((s,i)=>s===code[i]);
   current=[];
+  const maxG=repeats?REPEAT_MAXG:MAXG;
   if(solved){status="win";persist();render();finish();return;}
-  if(guesses.length>=MAXG){status="fail";persist();render();finish();return;}
+  if(guesses.length>=maxG){status="fail";persist();render();finish();return;}
   persist();render();
 }
 function result(){
   const g=guesses.length;
-  const label=status!=="win"?"Locked out":g<=2?"Mastermind! 🧠":g<=4?"Cracked it!":g<=6?"Solid solve":"Close call!";
-  const share="DAYBATCH · CODEBREAK 🔐 "+label+" "+(status==="win"?g:"X")+"/"+MAXG+"\n"+
-    guesses.map(gu=>gu.map((_,i)=>EMO[slotState(gu,i)]).join("")).join("\n")+"\n"+SITE_URL; // B3 link footer
+  const maxG=repeats?REPEAT_MAXG:MAXG;
+  const label=status!=="win"?"Locked out":
+    g<=(repeats?3:2)?"Mastermind! 🧠":
+    g<=(repeats?5:4)?"Cracked it!":
+    g<=(repeats?7:6)?"Solid solve":"Close call!";
+  const share="DAYBATCH · CODEBREAK"+(repeats?": REPEATS 🔁 ":" 🔐 ")+label+" "+(status==="win"?g:"X")+"/"+maxG+"\n"+
+    guesses.map(gu=>{const v=verdictRow(gu);return gu.map((_,i)=>EMO[v[i]]).join("");}).join("\n")+"\n"+SITE_URL; // B3 link footer
   return{win:status==="win",title:label,
-    line:status==="win"?"Solved in "+g+" of "+MAXG:"Out of guesses",
-    share,onAgain:()=>load(Math.floor(Math.random()*1e9),false),
+    line:status==="win"?"Solved in "+g+" of "+maxG:"Out of guesses",
+    share,onAgain:()=>repeats?loadRepeats():load(Math.floor(Math.random()*1e9),false),
     slimHost:pane.querySelector(".slimhost")};
 }
 function finish(){
@@ -68,20 +108,25 @@ function finish(){
 }
 function symbolKnown(si){
   let best=null;
-  for(const g of guesses)for(let i=0;i<LEN;i++){
-    if(g[i]!==si)continue;
-    const st=slotState(g,i);
-    if(st==="green")return"green";
-    if(st==="amber")best="amber";
-    else if(st==="grey"&&best===null)best="grey";
+  for(const g of guesses){
+    const v=verdictRow(g);
+    for(let i=0;i<LEN;i++){
+      if(g[i]!==si)continue;
+      const st=v[i];
+      if(st==="green")return"green";
+      if(st==="amber")best="amber";
+      else if(st==="grey"&&best===null)best="grey";
+    }
   }
   return best;
 }
 function render(){
+  const maxG=repeats?REPEAT_MAXG:MAXG;
   let rows="";
   guesses.forEach((g,gi)=>{
+    const v=verdictRow(g);
     rows+=`<div class="cb-row"><span class="cb-num">${gi+1}</span><div class="cb-tiles">${
-      g.map((s,i)=>`<span class="cb-tile"><i class="shp ${SYMS[s][0]}" style="background:${BG[slotState(g,i)]}"></i></span>`).join("")
+      g.map((s,i)=>`<span class="cb-tile"><i class="shp ${SYMS[s][0]}" style="background:${BG[v[i]]}"></i></span>`).join("")
     }</div></div>`;
   });
   if(!guesses.length&&status==="play")
@@ -100,7 +145,7 @@ function render(){
   let keys="";
   if(status==="play"){
     keys=`<div class="cb-keys">${SYMS.map((s,i)=>{
-      const used=current.indexOf(i)>=0,known=symbolKnown(i),dead=known==="grey";
+      const used=!repeats&&current.indexOf(i)>=0,known=symbolKnown(i),dead=known==="grey";
       const cls=[used?"used":"",dead?"dead":"",known==="green"?"kgreen":known==="amber"?"kamber":""].join(" ");
       return`<button data-k="${i}" class="${cls}" ${used||current.length>=LEN?"disabled":""}><i class="shp ${s[0]}" style="background:${s[1]}"></i><em class="kdot"></em></button>`;
     }).join("")}</div>
@@ -112,18 +157,19 @@ function render(){
   pane.innerHTML=`
     <div class="stats">
       <button class="helpbtn" id="cb-help">?</button>
-      <div class="stat big"><div class="lb">GUESSES</div><div class="vl" style="color:var(--marker)">${guesses.length}/${MAXG}</div></div>
-      <div class="stat"><div class="lb">MODE</div><div class="vl" style="color:var(--faded)">${isDaily?"DAILY":"PRAC"}</div></div>
+      <div class="stat big"><div class="lb">GUESSES</div><div class="vl" style="color:var(--marker)">${guesses.length}/${maxG}</div></div>
+      <div class="stat"><div class="lb">MODE</div><div class="vl" style="color:var(--faded)">${repeats?"REPEATS":isDaily?"DAILY":"PRAC"}</div></div>
     </div>
     <div class="board"><div class="cb-rows">${rows}${inputRow}</div></div>
     ${keys}
     <div class="btnrow">
       <button class="btn" id="cb-new">New puzzle</button>
       <button class="btn pri" id="cb-today">Today's</button>
+      ${isPremium()?'<button class="btn" id="cb-repeats">🔁 Repeats</button>':""}
     </div>
     <div class="slimhost"></div>`;
   pane.querySelectorAll(".cb-keys button").forEach(b=>b.onclick=()=>{
-    if(current.length<LEN&&current.indexOf(+b.dataset.k)<0){current.push(+b.dataset.k);persist();render();}
+    if(current.length<LEN&&(repeats||current.indexOf(+b.dataset.k)<0)){current.push(+b.dataset.k);persist();render();}
   });
   pane.querySelectorAll(".cb-slot.filled").forEach(s=>s.onclick=()=>{
     current.splice(+s.dataset.slot,1);persist();render();
@@ -134,6 +180,7 @@ function render(){
   const rowsEl=pane.querySelector(".cb-rows");if(rowsEl)rowsEl.scrollTop=rowsEl.scrollHeight;
   pane.querySelector("#cb-new").onclick=()=>load(Math.floor(Math.random()*1e9),false);
   pane.querySelector("#cb-today").onclick=()=>openDaily();
+  const repBtn=pane.querySelector("#cb-repeats");if(repBtn)repBtn.onclick=()=>loadRepeats();
 }
 export function initCodebreak(){
   pane=document.getElementById("pane-codebreak");
