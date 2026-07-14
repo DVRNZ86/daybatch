@@ -2,12 +2,13 @@
 // gen() is exported for logic tests; initCrossing() wires the DOM.
 import { mulberry32, dailySeed } from "../core/rng.js";
 import { showResult, showHelp, showSlimBar } from "../core/ui.js";
-import { getGameState, setGameState, addHistory, localDateKey } from "../core/storage.js";
+import { getGameState, setGameState, addHistory, localDateKey, isPremium, getCrossingEndlessBest, setCrossingEndlessBest } from "../core/storage.js";
 import { SITE_URL } from "../core/share.js";
 
 const ROWS=7,COLS=5;
 let pane;
 let puz,pos,seen,boomed,lives,steps,status,seed,isDaily,dateCur;
+let endless=false,boardsCleared=0; // D1: Endless Crossing (premium)
 
 export function gen(sd){
   const rng=mulberry32(sd);
@@ -78,7 +79,19 @@ function cascade(idx){
 }
 function load(sd,daily){
   seed=sd;isDaily=daily;dateCur=localDateKey();puz=gen(sd);pos=null;seen=new Set();boomed=new Set();
-  lives=3;steps=0;status="play";persist();render();
+  lives=3;steps=0;status="play";endless=false;persist();render();
+}
+// D1: Endless Crossing (premium) — continuous boards on shared lives; only
+// ends when lives hit 0. Ephemeral like practice: never persisted, never
+// touches history/streaks. Only the best run length is saved (storage.js).
+function startEndless(){
+  seed=Math.floor(Math.random()*1e9);isDaily=false;endless=true;dateCur=localDateKey();
+  puz=gen(seed);pos=null;seen=new Set();boomed=new Set();
+  lives=3;steps=0;boardsCleared=0;status="play";render();
+}
+function nextEndlessBoard(){
+  seed=Math.floor(Math.random()*1e9);puz=gen(seed);pos=null;seen=new Set();boomed=new Set();
+  steps=0;status="play";render();
 }
 // B2 persistence: daily games snapshot on every mutation; practice is ephemeral.
 function persist(){
@@ -115,10 +128,24 @@ function tap(i){
     persist();render();return;
   }
   cascade(i);pos=i;
-  if(Math.floor(i/COLS)===ROWS-1){status="win";persist();render();finish();return;}
+  if(Math.floor(i/COLS)===ROWS-1){
+    if(endless){boardsCleared++;nextEndlessBoard();return;}
+    status="win";persist();render();finish();return;
+  }
   persist();render();
 }
 function result(){
+  if(endless){
+    const best=getCrossingEndlessBest();
+    const isNewBest=boardsCleared>best;
+    if(isNewBest)setCrossingEndlessBest(boardsCleared);
+    const boards=boardsCleared+" board"+(boardsCleared===1?"":"s")+" cleared";
+    const share="DAYBATCH · CROSSING ♾️ Endless\n"+boards+(isNewBest?" — new best! 🏆":"")+"\n"+SITE_URL;
+    return{win:false,title:"Run over 💥",
+      line:boards+(isNewBest?" — new best!":" · best "+best),share,
+      onAgain:()=>startEndless(),
+      slimHost:pane.querySelector(".slimhost")};
+  }
   const label=status!=="win"?"Blown up 💥":lives===3?"Flawless crossing!":lives===2?"Made it!":"By a whisker!";
   const share=(status==="win"
     ?"DAYBATCH · CROSSING 🧭 "+label+"\n"+steps+" steps · "+"❤️".repeat(lives)+"💥".repeat(3-lives)
@@ -147,18 +174,22 @@ function render(){
     if(r===ROWS-1&&!seen.has(i)&&!showTrap)inner+='<span class="flag">🏁</span>';
     cells+=`<button data-i="${i}" class="${cls}">${inner}</button>`;
   }
+  const midStat=endless
+    ?`<div class="stat"><div class="lb">BOARDS</div><div class="vl">${boardsCleared}</div></div>`
+    :`<div class="stat"><div class="lb">STEPS</div><div class="vl">${steps}</div></div>`;
   pane.innerHTML=`
     <div class="stats">
       <button class="helpbtn" id="cr-help">?</button>
       <div class="stat big"><div class="lb">LIVES</div><div class="vl">${"❤️".repeat(lives)}${"🖤".repeat(3-lives)}</div></div>
-      <div class="stat"><div class="lb">STEPS</div><div class="vl">${steps}</div></div>
-      <div class="stat"><div class="lb">MODE</div><div class="vl" style="color:var(--faded)">${isDaily?"DAILY":"PRAC"}</div></div>
+      ${midStat}
+      <div class="stat"><div class="lb">MODE</div><div class="vl" style="color:var(--faded)">${endless?"ENDLESS":isDaily?"DAILY":"PRAC"}</div></div>
     </div>
     <div class="board"><div id="cr-grid">${cells}</div></div>
     <div class="btnrow">
-      ${isDaily?"":'<button class="btn" id="cr-retry">Retry</button>'}
+      ${isDaily||endless?"":'<button class="btn" id="cr-retry">Retry</button>'}
       <button class="btn" id="cr-new">New puzzle</button>
       <button class="btn pri" id="cr-today">Today's</button>
+      ${isPremium()?'<button class="btn" id="cr-endless">♾️ Endless</button>':""}
     </div>
     <div class="slimhost"></div>`;
   pane.querySelectorAll("#cr-grid button").forEach(b=>b.onclick=()=>tap(+b.dataset.i));
@@ -168,6 +199,7 @@ function render(){
   const retry=pane.querySelector("#cr-retry");if(retry)retry.onclick=()=>load(seed,isDaily);
   pane.querySelector("#cr-new").onclick=()=>load(Math.floor(Math.random()*1e9),false);
   pane.querySelector("#cr-today").onclick=()=>openDaily();
+  const endlessBtn=pane.querySelector("#cr-endless");if(endlessBtn)endlessBtn.onclick=()=>startEndless();
 }
 export function initCrossing(){
   pane=document.getElementById("pane-crossing");

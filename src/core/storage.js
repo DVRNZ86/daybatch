@@ -138,6 +138,21 @@ export function isPremium() {
   return typeof e.expiresAt === "number" && Date.now() < e.expiresAt;
 }
 
+// ---- D1: Endless Crossing best run (premium) ----
+// Optional additive field on the schema-1 root; absent means no run yet.
+// Ephemeral gameplay (never touches history/streaks) — only the best score
+// persists.
+
+export function getCrossingEndlessBest() {
+  const b = loadRoot().crossingEndlessBest;
+  return typeof b === "number" ? b : 0;
+}
+
+export function setCrossingEndlessBest(n) {
+  loadRoot().crossingEndlessBest = n;
+  saveRoot();
+}
+
 // ---- rollover bookkeeping ----
 
 export function getLastSeenDate() { return loadRoot().lastSeenDate; }
