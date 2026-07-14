@@ -154,6 +154,17 @@ One-screen onboarding ("Five puzzles. Every day. That's it."); **stats screen (h
 Redemption-code entitlement system (Stripe + one serverless verify function, no accounts) per A9. **Free tier, permanent: play all five dailies, share the daily result. Everything else is premium:** timed mode across all five games; Crossing endless mode (Endless Crossing); Codebreak repeated-symbols mode (Codebreak: Repeats); premium-only hints on Sonar and Codebreak; **viewing puzzle history/past results (the existing `getHistory()` record) and yesterday's solutions**; **archive access** — a date-picker letting premium users pick any past date and play it as a practice session (puzzles are pure `hash(game+date)` generation, so any past date regenerates on demand at zero storage cost — needs `dailySeed()` generalized to accept an explicit date instead of always `new Date()`). Archive/replay sessions never touch `history` or streaks, same as any other practice session.
 **Accept:** purchase→code→redeem works for all three price tiers; lifetime code verifies once then works fully offline; subscription code re-verifies on schedule and correctly revokes on cancellation (with grace-period tolerance); redemption cap of 2 enforced; all gated features (including history/archive) correctly locked/unlocked; archive date-picker generates any past date's puzzle correctly (seed-identity holds for historical dates too); archive play never mutates history/streaks; zero accounts or login UI anywhere in the app.
 
+### D2 — Go-to-market timeline (Darren, 14 Jul 2026)
+Organic-only, low-effort marketing plan anchored on **EPOCH = 10 Sep 2026**. Starting point: zero-follower fresh accounts on TikTok, Instagram, Reddit, X, YouTube. Deliberately concentrated rather than spread — Reddit and X are primary (visibility there isn't follower-gated), TikTok is opportunistic (posted if/when there's a natural clip, not on a content calendar), Instagram/YouTube stay dormant this phase. Runs alongside D1/B5 build work, not blocking it.
+
+- **Weeks 1–4 (14 Jul – ~11 Aug): quiet build phase.** No posting push. The share card (Option 2 format, already shipped in B3) is the primary growth asset — confirm it reads well cold before relying on it.
+- **Weeks 5–6 (~11–25 Aug): seed, don't blast.** One-time post to 2–3 relevant subreddits framed as "in development / feedback wanted," not a launch push — gets the app indexed and gets first real users. Draft (don't publish) a Product Hunt listing and a Show HN post.
+- **Week 7 (~25 Aug – 1 Sep): countdown visible.** The app already shows a live `#−N days` countdown pre-launch (A6/EPOCH). One X post pointing at it is enough — no daily cadence.
+- **Launch day, 10 Sep 2026:** Reddit post(s) to the subs seeded in weeks 5–6, Show HN, Product Hunt listing goes live, one X thread. If a result-reveal/share-card clip is easy to produce, post it to TikTok same day — opportunistic, not required.
+- **Post-launch:** no sustained content calendar. Growth relies on the share card being genuinely shareable; monitor uptake, don't manufacture posts.
+
+**Accept:** each milestone's actions are either done or explicitly skipped by launch day; TikTok/Instagram/YouTube involvement stays optional and doesn't block any date; no paid spend introduced without a separate decision.
+
 ---
 
 ## IDEAS.md — pre-seeded (Stage D candidates, premium hard modes)
