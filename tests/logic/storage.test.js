@@ -20,7 +20,8 @@ const {
   SCHEMA, freshRoot, _migrate, _resetCache, loadRoot, saveRoot, localDateKey,
   getGameState, setGameState, clearGameState, addHistory, getHistory,
   getLastSeenDate, setLastSeenDate,
-  getEntitlement, setEntitlement, clearEntitlement, isPremium
+  getEntitlement, setEntitlement, clearEntitlement, isPremium,
+  getBestTime, setBestTime
 } = S;
 
 function fresh(initial = {}) {
@@ -137,6 +138,19 @@ test("clearEntitlement reverts to free tier", () => {
   _resetCache();
   assert.equal(getEntitlement(), null);
   assert.equal(isPremium(), false);
+});
+
+test("best times: absent by default, round-trip per game, other games untouched", () => {
+  fresh();
+  assert.equal(getBestTime("sonar"), null);
+  setBestTime("sonar", 42000);
+  _resetCache();
+  assert.equal(getBestTime("sonar"), 42000);
+  assert.equal(getBestTime("tally"), null, "unrelated game stays unset");
+  setBestTime("tally", 8000);
+  _resetCache();
+  assert.equal(getBestTime("sonar"), 42000, "earlier game's best survives a later write");
+  assert.equal(getBestTime("tally"), 8000);
 });
 
 test("lastSeenDate round-trips", () => {

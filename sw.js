@@ -19,6 +19,7 @@ const SHELL = [
   "/src/core/streaks.js",
   "/src/core/ui.js",
   "/src/core/entitlement.js",
+  "/src/core/timer.js",
   "/src/games/codebreak.js",
   "/src/games/crossing.js",
   "/src/games/lexi.js",

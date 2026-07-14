@@ -153,6 +153,23 @@ export function setCrossingEndlessBest(n) {
   saveRoot();
 }
 
+// ---- D1: Timed mode best times (premium) ----
+// Optional additive field on the schema-1 root; absent/no entry means no
+// timed run yet for that game. Ephemeral gameplay (never touches
+// history/streaks) — only the best time persists.
+
+export function getBestTime(game) {
+  const t = loadRoot().bestTimes;
+  return t && typeof t[game] === "number" ? t[game] : null;
+}
+
+export function setBestTime(game, ms) {
+  const root = loadRoot();
+  if (!root.bestTimes) root.bestTimes = {};
+  root.bestTimes[game] = ms;
+  saveRoot();
+}
+
 // ---- rollover bookkeeping ----
 
 export function getLastSeenDate() { return loadRoot().lastSeenDate; }
