@@ -92,6 +92,14 @@ function tap(i){
   }
   persist();render();
 }
+// D1: Sonar hint (premium) — reveals a guaranteed-hit cell via the normal
+// tap() path, so it costs exactly what a real ping costs toward tierFor().
+function hint(){
+  if(status!=="play")return;
+  const cell=[...puz.occ].find(i=>!revealed.has(i));
+  if(cell===undefined)return;
+  tap(cell);
+}
 function result(){
   const p=revealed.size;
   const label=p===puz.total?"Perfect! 🏆":p<=puz.total+2?"Sharp shooting!":p<=puz.total+5?"Solid sweep":"All found";
@@ -153,7 +161,7 @@ function render(){
     <div class="btnrow">
       <button class="btn" id="sn-new">New puzzle</button>
       <button class="btn pri" id="sn-today">Today's</button>
-      ${isPremium()?'<button class="btn" id="sn-timed">⏱ Timed</button>':""}
+      ${isPremium()?'<button class="btn" id="sn-timed">⏱ Timed</button><button class="btn" id="sn-hint">💡 Hint</button>':""}
     </div>
     <div class="slimhost"></div>`;
   pane.querySelectorAll(".sn-row button").forEach(b=>b.onclick=()=>tap(+b.dataset.i));
@@ -161,6 +169,7 @@ function render(){
   pane.querySelector("#sn-new").onclick=()=>load(Math.floor(Math.random()*1e9),false);
   pane.querySelector("#sn-today").onclick=()=>openDaily();
   const timedBtn=pane.querySelector("#sn-timed");if(timedBtn)timedBtn.onclick=()=>startTimed();
+  const hintBtn=pane.querySelector("#sn-hint");if(hintBtn)hintBtn.onclick=()=>hint();
 }
 export function initSonar(){
   pane=document.getElementById("pane-sonar");

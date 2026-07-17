@@ -13,6 +13,7 @@ let pane;
 let code,guesses,current,status,isDaily;
 let repeats=false; // D1: Codebreak: Repeats (premium)
 let timed=false; // D1: Timed mode (premium)
+let hintedSlots; // D1: Codebreak hint (premium) — Set of slot indices revealed
 const stopwatch=createStopwatch();
 
 export function gen(sd){
@@ -57,25 +58,37 @@ const BG={green:"var(--win)",amber:"var(--amber)",grey:"#CBD5E1"};
 const EMO={green:"🟩",amber:"🟨",grey:"⬜"};
 const CB_HELP=`Crack the hidden <b>5-shape code</b> — no shape repeats.<br><br>After each guess your shapes recolour to show the verdict:<br><b style="color:var(--win)">green</b> — right symbol, right slot<br><b style="color:var(--amber)">amber</b> — in the code, wrong slot<br><b>grey</b> — not in the code<br><br>The keyboard remembers what you've learned: eliminated shapes turn grey, confirmed ones get a coloured underline. You have <b>8 guesses</b>.`;
 let seed,dateCur;
-function load(sd,daily){seed=sd;isDaily=daily;repeats=false;timed=false;dateCur=localDateKey();code=gen(sd);guesses=[];current=[];status="play";persist();render();}
+function load(sd,daily){seed=sd;isDaily=daily;repeats=false;timed=false;hintedSlots=new Set();dateCur=localDateKey();code=gen(sd);guesses=[];current=[];status="play";persist();render();}
 // D1: Codebreak: Repeats (premium) — ephemeral like practice, never touches
 // history/streaks (finish() only records when isDaily, which stays false).
 function loadRepeats(){
-  seed=Math.floor(Math.random()*1e9);isDaily=false;repeats=true;timed=false;dateCur=localDateKey();
+  seed=Math.floor(Math.random()*1e9);isDaily=false;repeats=true;timed=false;hintedSlots=new Set();dateCur=localDateKey();
   code=genRepeats(seed);guesses=[];current=[];status="play";render();
 }
 // D1: Timed mode (premium) — ephemeral like practice, never touches
 // history/streaks (finish() only records when isDaily, which stays false).
 function loadTimed(){
-  seed=Math.floor(Math.random()*1e9);isDaily=false;repeats=false;timed=true;dateCur=localDateKey();
+  seed=Math.floor(Math.random()*1e9);isDaily=false;repeats=false;timed=true;hintedSlots=new Set();dateCur=localDateKey();
   code=gen(seed);guesses=[];current=[];status="play";
   stopwatch.start(ms=>{const el=document.getElementById("cb-timer");if(el)el.textContent=formatMs(ms);});
   render();
 }
+// D1: Codebreak hint (premium) — reveals one correct shape+position as an
+// info line (doesn't touch the in-progress guess). Costs nothing in
+// Timed/Repeats (ephemeral, no rank); on a daily/practice win it's folded
+// into tierFor's guess count at the finish() call site, mirroring Lexi's
+// "hints count against your rank" philosophy.
+function hint(){
+  if(status!=="play")return;
+  const slot=[...Array(LEN).keys()].find(i=>!hintedSlots.has(i));
+  if(slot===undefined)return;
+  hintedSlots.add(slot);
+  persist();render();
+}
 // B2 persistence: daily games snapshot on every mutation; practice is ephemeral.
 function persist(){
   if(!isDaily)return;
-  setGameState("codebreak",{date:dateCur,seed,guesses,current,status});
+  setGameState("codebreak",{date:dateCur,seed,guesses,current,status,hintedSlots:[...hintedSlots]});
 }
 // Tier per PLAN.md B2 contract: ≤2→1, ≤4→2, ≤6→3, 7–8 or fail→4 (completed).
 export function tierFor(st,g){return st!=="win"?4:g<=2?1:g<=4?2:g<=6?3:4;}
@@ -83,7 +96,7 @@ function openDaily(){
   const sd=dailySeed("codebreak");
   const s=getGameState("codebreak");
   if(s&&s.date===localDateKey()&&s.seed===sd){
-    seed=s.seed;isDaily=true;repeats=false;timed=false;dateCur=s.date;code=gen(seed);guesses=s.guesses;current=s.current;status=s.status;render();
+    seed=s.seed;isDaily=true;repeats=false;timed=false;hintedSlots=new Set(s.hintedSlots||[]);dateCur=s.date;code=gen(seed);guesses=s.guesses;current=s.current;status=s.status;render();
     if(status!=="play")showSlimBar(result());
     return;
   }
@@ -131,7 +144,15 @@ function result(){
     slimHost:pane.querySelector(".slimhost")};
 }
 function finish(){
-  if(isDaily)addHistory({date:dateCur,game:"codebreak",tier:tierFor(status,guesses.length),metrics:{guesses:guesses.length,win:status==="win"}});
+  // D1: hints count against rank, same philosophy as Lexi — folded into the
+  // tierFor input only, never into the displayed GUESSES/maxG count. The
+  // metrics field is only added when a hint was actually used, so a normal
+  // (hint-free) completion's persisted record shape is untouched.
+  if(isDaily){
+    const metrics={guesses:guesses.length,win:status==="win"};
+    if(hintedSlots.size)metrics.hints=hintedSlots.size;
+    addHistory({date:dateCur,game:"codebreak",tier:tierFor(status,guesses.length+hintedSlots.size),metrics});
+  }
   showResult(result());
 }
 function symbolKnown(si){
@@ -183,6 +204,13 @@ function render(){
     </div>`;
   }
   const timerStat=timed?`<div class="stat"><div class="lb">TIME</div><div class="vl" id="cb-timer" style="color:var(--marker)">${formatMs(stopwatch.elapsed())}</div></div>`:"";
+  // D1: Codebreak hint (premium) — reveals correct shape+slot as an info
+  // line, kept separate from the in-progress guess row.
+  const hintLine=(status==="play"&&hintedSlots.size)
+    ?`<div style="margin-top:6px;font-size:12px;color:var(--faded)">Hints: ${[...hintedSlots].sort((a,b)=>a-b).map(i=>
+        `#${i+1} <i class="shp ${SYMS[code[i]][0]}" style="background:${SYMS[code[i]][1]};width:16px;height:16px;display:inline-block;vertical-align:middle;margin:0 6px 0 2px"></i>`
+      ).join(" ")}</div>`
+    :"";
   pane.innerHTML=`
     <div class="stats">
       <button class="helpbtn" id="cb-help">?</button>
@@ -190,12 +218,12 @@ function render(){
       ${timerStat}
       <div class="stat"><div class="lb">MODE</div><div class="vl" style="color:var(--faded)">${repeats?"REPEATS":timed?"TIMED":isDaily?"DAILY":"PRAC"}</div></div>
     </div>
-    <div class="board"><div class="cb-rows">${rows}${inputRow}</div></div>
+    <div class="board"><div class="cb-rows">${rows}${inputRow}</div>${hintLine}</div>
     ${keys}
     <div class="btnrow">
       <button class="btn" id="cb-new">New puzzle</button>
       <button class="btn pri" id="cb-today">Today's</button>
-      ${isPremium()?'<button class="btn" id="cb-repeats">🔁 Repeats</button><button class="btn" id="cb-timed">⏱ Timed</button>':""}
+      ${isPremium()?'<button class="btn" id="cb-repeats">🔁 Repeats</button><button class="btn" id="cb-timed">⏱ Timed</button><button class="btn" id="cb-hint">💡 Hint</button>':""}
     </div>
     <div class="slimhost"></div>`;
   pane.querySelectorAll(".cb-keys button").forEach(b=>b.onclick=()=>{
@@ -212,6 +240,7 @@ function render(){
   pane.querySelector("#cb-today").onclick=()=>openDaily();
   const repBtn=pane.querySelector("#cb-repeats");if(repBtn)repBtn.onclick=()=>loadRepeats();
   const timedBtn=pane.querySelector("#cb-timed");if(timedBtn)timedBtn.onclick=()=>loadTimed();
+  const hintBtn=pane.querySelector("#cb-hint");if(hintBtn)hintBtn.onclick=()=>hint();
 }
 export function initCodebreak(){
   pane=document.getElementById("pane-codebreak");
