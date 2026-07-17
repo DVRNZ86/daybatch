@@ -1,7 +1,7 @@
 // CODEBREAK — ported verbatim from v13 (reference/daybatch-v13.html).
 // gen() is exported for logic tests; initCodebreak() wires the DOM.
 import { mulberry32, dailySeed } from "../core/rng.js";
-import { showResult, showHelp, showSlimBar } from "../core/ui.js";
+import { showResult, showHelp, showSlimBar, openArchive } from "../core/ui.js";
 import { getGameState, setGameState, addHistory, localDateKey, isPremium, getBestTime, setBestTime } from "../core/storage.js";
 import { createStopwatch, formatMs } from "../core/timer.js";
 import { SITE_URL } from "../core/share.js";
@@ -13,6 +13,7 @@ let pane;
 let code,guesses,current,status,isDaily;
 let repeats=false; // D1: Codebreak: Repeats (premium)
 let timed=false; // D1: Timed mode (premium)
+let archiveDate=null; // D1: Archive (premium)
 let hintedSlots; // D1: Codebreak hint (premium) — Set of slot indices revealed
 const stopwatch=createStopwatch();
 
@@ -58,20 +59,26 @@ const BG={green:"var(--win)",amber:"var(--amber)",grey:"#CBD5E1"};
 const EMO={green:"🟩",amber:"🟨",grey:"⬜"};
 const CB_HELP=`Crack the hidden <b>5-shape code</b> — no shape repeats.<br><br>After each guess your shapes recolour to show the verdict:<br><b style="color:var(--win)">green</b> — right symbol, right slot<br><b style="color:var(--amber)">amber</b> — in the code, wrong slot<br><b>grey</b> — not in the code<br><br>The keyboard remembers what you've learned: eliminated shapes turn grey, confirmed ones get a coloured underline. You have <b>8 guesses</b>.`;
 let seed,dateCur;
-function load(sd,daily){seed=sd;isDaily=daily;repeats=false;timed=false;hintedSlots=new Set();dateCur=localDateKey();code=gen(sd);guesses=[];current=[];status="play";persist();render();}
+function load(sd,daily){seed=sd;isDaily=daily;repeats=false;timed=false;archiveDate=null;hintedSlots=new Set();dateCur=localDateKey();code=gen(sd);guesses=[];current=[];status="play";persist();render();}
 // D1: Codebreak: Repeats (premium) — ephemeral like practice, never touches
 // history/streaks (finish() only records when isDaily, which stays false).
 function loadRepeats(){
-  seed=Math.floor(Math.random()*1e9);isDaily=false;repeats=true;timed=false;hintedSlots=new Set();dateCur=localDateKey();
+  seed=Math.floor(Math.random()*1e9);isDaily=false;repeats=true;timed=false;archiveDate=null;hintedSlots=new Set();dateCur=localDateKey();
   code=genRepeats(seed);guesses=[];current=[];status="play";render();
 }
 // D1: Timed mode (premium) — ephemeral like practice, never touches
 // history/streaks (finish() only records when isDaily, which stays false).
 function loadTimed(){
-  seed=Math.floor(Math.random()*1e9);isDaily=false;repeats=false;timed=true;hintedSlots=new Set();dateCur=localDateKey();
+  seed=Math.floor(Math.random()*1e9);isDaily=false;repeats=false;timed=true;archiveDate=null;hintedSlots=new Set();dateCur=localDateKey();
   code=gen(seed);guesses=[];current=[];status="play";
   stopwatch.start(ms=>{const el=document.getElementById("cb-timer");if(el)el.textContent=formatMs(ms);});
   render();
+}
+// D1: Archive (premium) — replays any past date's puzzle via the
+// generalized dailySeed(game, date); ephemeral like practice.
+function startArchive(date){
+  seed=dailySeed("codebreak",date);isDaily=false;repeats=false;timed=false;archiveDate=date;hintedSlots=new Set();dateCur=localDateKey();
+  code=gen(seed);guesses=[];current=[];status="play";render();
 }
 // D1: Codebreak hint (premium) — reveals one correct shape+position as an
 // info line (doesn't touch the in-progress guess). Costs nothing in
@@ -96,7 +103,7 @@ function openDaily(){
   const sd=dailySeed("codebreak");
   const s=getGameState("codebreak");
   if(s&&s.date===localDateKey()&&s.seed===sd){
-    seed=s.seed;isDaily=true;repeats=false;timed=false;hintedSlots=new Set(s.hintedSlots||[]);dateCur=s.date;code=gen(seed);guesses=s.guesses;current=s.current;status=s.status;render();
+    seed=s.seed;isDaily=true;repeats=false;timed=false;archiveDate=null;hintedSlots=new Set(s.hintedSlots||[]);dateCur=s.date;code=gen(seed);guesses=s.guesses;current=s.current;status=s.status;render();
     if(status!=="play")showSlimBar(result());
     return;
   }
@@ -204,6 +211,7 @@ function render(){
     </div>`;
   }
   const timerStat=timed?`<div class="stat"><div class="lb">TIME</div><div class="vl" id="cb-timer" style="color:var(--marker)">${formatMs(stopwatch.elapsed())}</div></div>`:"";
+  const dateStat=archiveDate?`<div class="stat"><div class="lb">DATE</div><div class="vl">${archiveDate.getMonth()+1}/${archiveDate.getDate()}</div></div>`:"";
   // D1: Codebreak hint (premium) — reveals correct shape+slot as an info
   // line, kept separate from the in-progress guess row.
   const hintLine=(status==="play"&&hintedSlots.size)
@@ -215,15 +223,15 @@ function render(){
     <div class="stats">
       <button class="helpbtn" id="cb-help">?</button>
       <div class="stat big"><div class="lb">GUESSES</div><div class="vl" style="color:var(--marker)">${guesses.length}/${maxG}</div></div>
-      ${timerStat}
-      <div class="stat"><div class="lb">MODE</div><div class="vl" style="color:var(--faded)">${repeats?"REPEATS":timed?"TIMED":isDaily?"DAILY":"PRAC"}</div></div>
+      ${timerStat}${dateStat}
+      <div class="stat"><div class="lb">MODE</div><div class="vl" style="color:var(--faded)">${repeats?"REPEATS":timed?"TIMED":archiveDate?"ARCHIVE":isDaily?"DAILY":"PRAC"}</div></div>
     </div>
     <div class="board"><div class="cb-rows">${rows}${inputRow}</div>${hintLine}</div>
     ${keys}
     <div class="btnrow">
       <button class="btn" id="cb-new">New puzzle</button>
       <button class="btn pri" id="cb-today">Today's</button>
-      ${isPremium()?'<button class="btn" id="cb-repeats">🔁 Repeats</button><button class="btn" id="cb-timed">⏱ Timed</button><button class="btn" id="cb-hint">💡 Hint</button>':""}
+      ${isPremium()?'<button class="btn" id="cb-repeats">🔁 Repeats</button><button class="btn" id="cb-timed">⏱ Timed</button><button class="btn" id="cb-hint">💡 Hint</button><button class="btn" id="cb-archive">📅 Archive</button>':""}
     </div>
     <div class="slimhost"></div>`;
   pane.querySelectorAll(".cb-keys button").forEach(b=>b.onclick=()=>{
@@ -241,6 +249,7 @@ function render(){
   const repBtn=pane.querySelector("#cb-repeats");if(repBtn)repBtn.onclick=()=>loadRepeats();
   const timedBtn=pane.querySelector("#cb-timed");if(timedBtn)timedBtn.onclick=()=>loadTimed();
   const hintBtn=pane.querySelector("#cb-hint");if(hintBtn)hintBtn.onclick=()=>hint();
+  const archiveBtn=pane.querySelector("#cb-archive");if(archiveBtn)archiveBtn.onclick=()=>openArchive(d=>startArchive(d));
 }
 export function initCodebreak(){
   pane=document.getElementById("pane-codebreak");

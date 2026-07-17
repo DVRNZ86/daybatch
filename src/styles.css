@@ -231,6 +231,24 @@
 #pm-msg.ok { color:var(--win); }
 #pm-msg.err { color:var(--bad); }
 #pm-close { margin-top:4px; width:100%; padding:10px; border:none; background:transparent; color:var(--faded); font-weight:600; font-family:inherit; font-size:13px; cursor:pointer; }
+
+/* D1: archive date-picker overlay */
+#archiveov {
+  position:fixed; inset:0; z-index:700; background:rgba(22,50,79,.5);
+  display:none; align-items:center; justify-content:center; padding:20px;
+}
+#archiveov.show { display:flex; animation:fadeIn .2s ease-out; }
+#archivebox {
+  background:var(--card); border-radius:20px; width:100%; max-width:340px; padding:18px;
+  box-shadow:0 16px 48px rgba(22,50,79,.35); animation:popIn .25s ease-out;
+}
+#ar-title { font-weight:700; font-size:18px; margin-bottom:8px; }
+#ar-body { font-size:13px; color:var(--faded); line-height:1.55; margin-bottom:12px; }
+#ar-date {
+  width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--grid);
+  font-family:inherit; font-size:14px; color:var(--ink); margin-bottom:8px;
+}
+#ar-close { margin-top:4px; width:100%; padding:10px; border:none; background:transparent; color:var(--faded); font-weight:600; font-family:inherit; font-size:13px; cursor:pointer; }
   .slimbar {
     margin-top:14px; background:var(--card); border-radius:14px; padding:10px 14px;
     display:flex; align-items:center; gap:10px;

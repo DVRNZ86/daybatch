@@ -1,7 +1,7 @@
 // SONAR — ported verbatim from v13 (reference/daybatch-v13.html).
 // gen() is exported for logic tests; initSonar() wires the DOM.
 import { mulberry32, dailySeed } from "../core/rng.js";
-import { showResult, showHelp, showSlimBar } from "../core/ui.js";
+import { showResult, showHelp, showSlimBar, openArchive } from "../core/ui.js";
 import { getGameState, setGameState, addHistory, localDateKey, isPremium, getBestTime, setBestTime } from "../core/storage.js";
 import { createStopwatch, formatMs } from "../core/timer.js";
 import { SITE_URL } from "../core/share.js";
@@ -10,6 +10,7 @@ const SN=7,SHIPS=[3,2,2];
 let pane;
 let puz,revealed,status,isDaily;
 let timed=false; // D1: Timed mode (premium)
+let archiveDate=null; // D1: Archive (premium)
 const stopwatch=createStopwatch();
 
 function tryGen(sd){
@@ -55,14 +56,20 @@ export function gen(sd){
 }
 const SN_HELP=`Three vessels hide in the deep — the fleet shown above the grid (never touching, not even diagonally).<br><br>Every tap is a <b>ping</b>: <b>◉ orange</b> = part of a vessel, <b>· blue</b> = empty water.<br><br><b>Edge numbers</b> count how many vessel cells sit in that row or column — they turn <b>green ✓</b> once you've found them all. Use them to deduce, not guess.<br><br>Find every vessel cell in the fewest pings.`;
 let seed,dateCur;
-function load(sd,daily){seed=sd;isDaily=daily;timed=false;dateCur=localDateKey();puz=gen(sd);revealed=new Map();status="play";persist();render();}
+function load(sd,daily){seed=sd;isDaily=daily;timed=false;archiveDate=null;dateCur=localDateKey();puz=gen(sd);revealed=new Map();status="play";persist();render();}
 // D1: Timed mode (premium) — ephemeral like practice, never touches
 // history/streaks (finish() only records when isDaily, which stays false).
 function startTimed(){
-  seed=Math.floor(Math.random()*1e9);isDaily=false;timed=true;dateCur=localDateKey();
+  seed=Math.floor(Math.random()*1e9);isDaily=false;timed=true;archiveDate=null;dateCur=localDateKey();
   puz=gen(seed);revealed=new Map();status="play";
   stopwatch.start(ms=>{const el=document.getElementById("sn-timer");if(el)el.textContent=formatMs(ms);});
   render();
+}
+// D1: Archive (premium) — replays any past date's puzzle via the
+// generalized dailySeed(game, date); ephemeral like practice.
+function startArchive(date){
+  seed=dailySeed("sonar",date);isDaily=false;timed=false;archiveDate=date;dateCur=localDateKey();
+  puz=gen(seed);revealed=new Map();status="play";render();
 }
 function hits(){let n=0;revealed.forEach(v=>{if(v==="hit")n++;});return n;}
 // B2 persistence: daily games snapshot on every mutation; practice is ephemeral.
@@ -76,7 +83,7 @@ function openDaily(){
   const sd=dailySeed("sonar");
   const s=getGameState("sonar");
   if(s&&s.date===localDateKey()&&s.seed===sd){
-    seed=s.seed;isDaily=true;timed=false;dateCur=s.date;puz=gen(seed);revealed=new Map(s.revealed);status=s.status;render();
+    seed=s.seed;isDaily=true;timed=false;archiveDate=null;dateCur=s.date;puz=gen(seed);revealed=new Map(s.revealed);status=s.status;render();
     if(status!=="play")showSlimBar(result());
     return;
   }
@@ -141,13 +148,14 @@ function render(){
     grid+="</div>";
   }
   const timerStat=timed?`<div class="stat"><div class="lb">TIME</div><div class="vl" id="sn-timer" style="color:var(--marker)">${formatMs(stopwatch.elapsed())}</div></div>`:"";
+  const dateStat=archiveDate?`<div class="stat"><div class="lb">DATE</div><div class="vl">${archiveDate.getMonth()+1}/${archiveDate.getDate()}</div></div>`:"";
   pane.innerHTML=`
     <div class="stats">
       <button class="helpbtn" id="sn-help">?</button>
       <div class="stat big"><div class="lb">PINGS</div><div class="vl" style="color:var(--marker)">${revealed.size}</div></div>
       <div class="stat big"><div class="lb">FOUND</div><div class="vl" style="color:var(--win)">${hits()}/${puz.total}</div></div>
-      ${timerStat}
-      <div class="stat"><div class="lb">MODE</div><div class="vl" style="color:var(--faded)">${timed?"TIMED":isDaily?"DAILY":"PRAC"}</div></div>
+      ${timerStat}${dateStat}
+      <div class="stat"><div class="lb">MODE</div><div class="vl" style="color:var(--faded)">${archiveDate?"ARCHIVE":timed?"TIMED":isDaily?"DAILY":"PRAC"}</div></div>
     </div>
     <div class="board" style="padding:6px">
       <div class="fleet">
@@ -161,7 +169,7 @@ function render(){
     <div class="btnrow">
       <button class="btn" id="sn-new">New puzzle</button>
       <button class="btn pri" id="sn-today">Today's</button>
-      ${isPremium()?'<button class="btn" id="sn-timed">⏱ Timed</button><button class="btn" id="sn-hint">💡 Hint</button>':""}
+      ${isPremium()?'<button class="btn" id="sn-timed">⏱ Timed</button><button class="btn" id="sn-hint">💡 Hint</button><button class="btn" id="sn-archive">📅 Archive</button>':""}
     </div>
     <div class="slimhost"></div>`;
   pane.querySelectorAll(".sn-row button").forEach(b=>b.onclick=()=>tap(+b.dataset.i));
@@ -170,6 +178,7 @@ function render(){
   pane.querySelector("#sn-today").onclick=()=>openDaily();
   const timedBtn=pane.querySelector("#sn-timed");if(timedBtn)timedBtn.onclick=()=>startTimed();
   const hintBtn=pane.querySelector("#sn-hint");if(hintBtn)hintBtn.onclick=()=>hint();
+  const archiveBtn=pane.querySelector("#sn-archive");if(archiveBtn)archiveBtn.onclick=()=>openArchive(d=>startArchive(d));
 }
 export function initSonar(){
   pane=document.getElementById("pane-sonar");

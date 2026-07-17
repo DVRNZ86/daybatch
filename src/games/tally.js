@@ -2,7 +2,7 @@
 // Pure helpers (neighbors/applyOp/solveGrid/gen) are exported for logic
 // tests; initTally() wires the DOM.
 import { mulberry32, dailySeed } from "../core/rng.js";
-import { showResult, showHelp, showSlimBar } from "../core/ui.js";
+import { showResult, showHelp, showSlimBar, openArchive } from "../core/ui.js";
 import { getGameState, setGameState, addHistory, localDateKey, isPremium, getBestTime, setBestTime } from "../core/storage.js";
 import { createStopwatch, formatMs } from "../core/timer.js";
 import { SITE_URL } from "../core/share.js";
@@ -12,6 +12,7 @@ let pane;
 let puz,path,attempts,status,isDaily,dragging=false,seedCur,dateCur;
 let elGrid,elTotal,elTries,boardEl;
 let timed=false; // D1: Timed mode (premium)
+let archiveDate=null; // D1: Archive (premium)
 const stopwatch=createStopwatch();
 
 export function neighbors(i){
@@ -77,7 +78,7 @@ function evalPath(){
 }
 const TY_HELP=`<b>Drag a path</b> from START to END through numbers and operators. Your total runs left to right as you draw — land on END with <b>exactly the target</b>.<br><br><b>BEST</b> is the shortest possible winning path — match it for a perfect ⛳.<br><br>Retrace your line to undo. You can also tap an adjacent cell to extend. Unlimited tries, but they're counted.`;
 function load(seed,daily){
-  isDaily=daily;timed=false;seedCur=seed;dateCur=localDateKey();
+  isDaily=daily;timed=false;archiveDate=null;seedCur=seed;dateCur=localDateKey();
   puz=gen(seed);
   if(!puz){puz=gen(Math.floor(Math.random()*1e9));}
   path=[START];attempts=0;status="play";buildDOM();
@@ -85,11 +86,19 @@ function load(seed,daily){
 // D1: Timed mode (premium) — ephemeral like practice, never touches
 // history/streaks (finish() only records when isDaily, which stays false).
 function startTimed(){
-  isDaily=false;timed=true;seedCur=Math.floor(Math.random()*1e9);dateCur=localDateKey();
+  isDaily=false;timed=true;archiveDate=null;seedCur=Math.floor(Math.random()*1e9);dateCur=localDateKey();
   puz=gen(seedCur);
   if(!puz)puz=gen(Math.floor(Math.random()*1e9));
   path=[START];attempts=0;status="play";buildDOM();
   stopwatch.start(ms=>{const el=document.getElementById("ty-timer");if(el)el.textContent=formatMs(ms);});
+}
+// D1: Archive (premium) — replays any past date's puzzle via the
+// generalized dailySeed(game, date); ephemeral like practice.
+function startArchive(date){
+  isDaily=false;timed=false;archiveDate=date;seedCur=dailySeed("tally",date);dateCur=localDateKey();
+  puz=gen(seedCur);
+  if(!puz)puz=gen((seedCur+99991)>>>0);
+  path=[START];attempts=0;status="play";buildDOM();
 }
 // B2 persistence: daily games snapshot on every mutation; practice is ephemeral.
 function persist(){
@@ -104,7 +113,7 @@ function openDaily(){
   if(s&&s.date===localDateKey()&&s.seed===sd){
     puz=gen(s.seed);
     if(!puz){load(sd,true);return;} // seed failed to generate: snapshot can't be trusted
-    isDaily=true;timed=false;seedCur=s.seed;dateCur=s.date;
+    isDaily=true;timed=false;archiveDate=null;seedCur=s.seed;dateCur=s.date;
     path=s.path;attempts=s.attempts;status=s.status;
     buildDOM();
     elTries.textContent=attempts;
@@ -123,6 +132,7 @@ function buildDOM(){
     cells+=`<div class="tc ${c.type}" data-i="${i}">${c.value}${tag}</div>`;
   }
   const timerStat=timed?`<div class="stat"><div class="lb">TIME</div><div class="vl" id="ty-timer" style="color:var(--marker)">${formatMs(stopwatch.elapsed())}</div></div>`:"";
+  const dateStat=archiveDate?`<div class="stat"><div class="lb">DATE</div><div class="vl">${archiveDate.getMonth()+1}/${archiveDate.getDate()}</div></div>`:"";
   pane.innerHTML=`
     <div class="stats">
       <button class="helpbtn" id="ty-help">?</button>
@@ -130,7 +140,7 @@ function buildDOM(){
       <div class="stat big"><div class="lb">RUNNING</div><div class="vl" id="ty-total">—</div></div>
       <div class="stat"><div class="lb">BEST</div><div class="vl">${puz.par}</div></div>
       <div class="stat"><div class="lb">TRIES</div><div class="vl" id="ty-tries">0</div></div>
-      ${timerStat}
+      ${timerStat}${dateStat}
     </div>
     <div class="board" id="ty-board">
       <div id="ty-grid">${cells}</div>
@@ -143,7 +153,7 @@ function buildDOM(){
       <button class="btn" id="ty-clear">Clear path</button>
       <button class="btn" id="ty-new">New puzzle</button>
       <button class="btn pri" id="ty-today">Today's</button>
-      ${isPremium()?'<button class="btn" id="ty-timed">⏱ Timed</button>':""}
+      ${isPremium()?'<button class="btn" id="ty-timed">⏱ Timed</button><button class="btn" id="ty-archive">📅 Archive</button>':""}
     </div>
     <div class="slimhost"></div>`;
   boardEl=pane.querySelector("#ty-board");
@@ -155,6 +165,7 @@ function buildDOM(){
   pane.querySelector("#ty-new").onclick=()=>load(Math.floor(Math.random()*1e9),false);
   pane.querySelector("#ty-today").onclick=()=>openDaily();
   const timedBtn=pane.querySelector("#ty-timed");if(timedBtn)timedBtn.onclick=()=>startTimed();
+  const archiveBtn=pane.querySelector("#ty-archive");if(archiveBtn)archiveBtn.onclick=()=>openArchive(d=>startArchive(d));
   boardEl.addEventListener("touchmove",e=>e.preventDefault(),{passive:false});
   boardEl.addEventListener("pointerdown",onDown);
   boardEl.addEventListener("pointermove",onMove);

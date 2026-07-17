@@ -1,7 +1,7 @@
 // CROSSING — ported verbatim from v13 (reference/daybatch-v13.html).
 // gen() is exported for logic tests; initCrossing() wires the DOM.
 import { mulberry32, dailySeed } from "../core/rng.js";
-import { showResult, showHelp, showSlimBar } from "../core/ui.js";
+import { showResult, showHelp, showSlimBar, openArchive } from "../core/ui.js";
 import { getGameState, setGameState, addHistory, localDateKey, isPremium, getCrossingEndlessBest, setCrossingEndlessBest, getBestTime, setBestTime } from "../core/storage.js";
 import { createStopwatch, formatMs } from "../core/timer.js";
 import { SITE_URL } from "../core/share.js";
@@ -11,6 +11,7 @@ let pane;
 let puz,pos,seen,boomed,lives,steps,status,seed,isDaily,dateCur;
 let endless=false,boardsCleared=0; // D1: Endless Crossing (premium)
 let timed=false; // D1: Timed mode (premium)
+let archiveDate=null; // D1: Archive (premium)
 const stopwatch=createStopwatch();
 
 export function gen(sd){
@@ -82,15 +83,21 @@ function cascade(idx){
 }
 function load(sd,daily){
   seed=sd;isDaily=daily;dateCur=localDateKey();puz=gen(sd);pos=null;seen=new Set();boomed=new Set();
-  lives=3;steps=0;status="play";endless=false;timed=false;persist();render();
+  lives=3;steps=0;status="play";endless=false;timed=false;archiveDate=null;persist();render();
 }
 // D1: Timed mode (premium) — ephemeral like practice, never touches
 // history/streaks (finish() only records when isDaily, which stays false).
 function startTimed(){
-  seed=Math.floor(Math.random()*1e9);isDaily=false;endless=false;timed=true;dateCur=localDateKey();
+  seed=Math.floor(Math.random()*1e9);isDaily=false;endless=false;timed=true;archiveDate=null;dateCur=localDateKey();
   puz=gen(seed);pos=null;seen=new Set();boomed=new Set();lives=3;steps=0;status="play";
   stopwatch.start(ms=>{const el=document.getElementById("cr-timer");if(el)el.textContent=formatMs(ms);});
   render();
+}
+// D1: Archive (premium) — replays any past date's puzzle via the
+// generalized dailySeed(game, date); ephemeral like practice.
+function startArchive(date){
+  seed=dailySeed("crossing",date);isDaily=false;endless=false;timed=false;archiveDate=date;dateCur=localDateKey();
+  puz=gen(seed);pos=null;seen=new Set();boomed=new Set();lives=3;steps=0;status="play";render();
 }
 // D1: Endless Crossing (premium) — continuous boards on shared lives; only
 // ends when lives hit 0. Ephemeral like practice: never persisted, never
@@ -117,7 +124,7 @@ function openDaily(){
   const sd=dailySeed("crossing");
   const s=getGameState("crossing");
   if(s&&s.date===localDateKey()&&s.seed===sd){
-    seed=s.seed;isDaily=true;endless=false;timed=false;dateCur=s.date;puz=gen(seed);pos=s.pos;seen=new Set(s.seen);boomed=new Set(s.boomed);
+    seed=s.seed;isDaily=true;endless=false;timed=false;archiveDate=null;dateCur=s.date;puz=gen(seed);pos=s.pos;seen=new Set(s.seen);boomed=new Set(s.boomed);
     lives=s.lives;steps=s.steps;status=s.status;render();
     if(status!=="play")showSlimBar(result());
     return;
@@ -207,20 +214,22 @@ function render(){
     ?`<div class="stat"><div class="lb">BOARDS</div><div class="vl">${boardsCleared}</div></div>`
     :timed
     ?`<div class="stat"><div class="lb">TIME</div><div class="vl" id="cr-timer" style="color:var(--marker)">${formatMs(stopwatch.elapsed())}</div></div>`
+    :archiveDate
+    ?`<div class="stat"><div class="lb">DATE</div><div class="vl">${archiveDate.getMonth()+1}/${archiveDate.getDate()}</div></div>`
     :`<div class="stat"><div class="lb">STEPS</div><div class="vl">${steps}</div></div>`;
   pane.innerHTML=`
     <div class="stats">
       <button class="helpbtn" id="cr-help">?</button>
       <div class="stat big"><div class="lb">LIVES</div><div class="vl">${"❤️".repeat(lives)}${"🖤".repeat(3-lives)}</div></div>
       ${midStat}
-      <div class="stat"><div class="lb">MODE</div><div class="vl" style="color:var(--faded)">${endless?"ENDLESS":timed?"TIMED":isDaily?"DAILY":"PRAC"}</div></div>
+      <div class="stat"><div class="lb">MODE</div><div class="vl" style="color:var(--faded)">${endless?"ENDLESS":timed?"TIMED":archiveDate?"ARCHIVE":isDaily?"DAILY":"PRAC"}</div></div>
     </div>
     <div class="board"><div id="cr-grid">${cells}</div></div>
     <div class="btnrow">
-      ${isDaily||endless||timed?"":'<button class="btn" id="cr-retry">Retry</button>'}
+      ${isDaily||endless||timed||archiveDate?"":'<button class="btn" id="cr-retry">Retry</button>'}
       <button class="btn" id="cr-new">New puzzle</button>
       <button class="btn pri" id="cr-today">Today's</button>
-      ${isPremium()?'<button class="btn" id="cr-endless">♾️ Endless</button><button class="btn" id="cr-timed">⏱ Timed</button>':""}
+      ${isPremium()?'<button class="btn" id="cr-endless">♾️ Endless</button><button class="btn" id="cr-timed">⏱ Timed</button><button class="btn" id="cr-archive">📅 Archive</button>':""}
     </div>
     <div class="slimhost"></div>`;
   pane.querySelectorAll("#cr-grid button").forEach(b=>b.onclick=()=>tap(+b.dataset.i));
@@ -232,6 +241,7 @@ function render(){
   pane.querySelector("#cr-today").onclick=()=>openDaily();
   const endlessBtn=pane.querySelector("#cr-endless");if(endlessBtn)endlessBtn.onclick=()=>startEndless();
   const timedBtn=pane.querySelector("#cr-timed");if(timedBtn)timedBtn.onclick=()=>startTimed();
+  const archiveBtn=pane.querySelector("#cr-archive");if(archiveBtn)archiveBtn.onclick=()=>openArchive(d=>startArchive(d));
 }
 export function initCrossing(){
   pane=document.getElementById("pane-crossing");

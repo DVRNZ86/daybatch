@@ -103,11 +103,38 @@ export function refreshPremiumStatus(){
   }
 }
 
+// D1: archive date-picker (premium) — shared by every game. onPick receives
+// a plain Date for the chosen calendar day; callers pass it straight into
+// dailySeed(game, date) to regenerate that day's puzzle.
+function pad2(n){return String(n).padStart(2,"0");}
+function toDateInputValue(d){return d.getFullYear()+"-"+pad2(d.getMonth()+1)+"-"+pad2(d.getDate());}
+
+let archiveov;
+export function openArchive(onPick){
+  const input=document.getElementById("ar-date");
+  const yesterday=new Date();
+  yesterday.setDate(yesterday.getDate()-1);
+  const maxVal=toDateInputValue(yesterday);
+  input.max=maxVal;
+  input.value=maxVal;
+  archiveov.classList.add("show");
+  document.getElementById("ar-go").onclick=()=>{
+    const val=input.value;
+    if(!val)return;
+    const[y,m,d]=val.split("-").map(Number);
+    archiveov.classList.remove("show");
+    onPick(new Date(y,m-1,d));
+  };
+}
+
 let premiumov;
 export function initUI(){
   overlay=document.getElementById("overlay");modal=document.getElementById("modal");
   helpov=document.getElementById("helpov");
   premiumov=document.getElementById("premiumov");
+  archiveov=document.getElementById("archiveov");
+  document.getElementById("ar-close").onclick=()=>archiveov.classList.remove("show");
+  archiveov.onclick=(e)=>{if(e.target===archiveov)archiveov.classList.remove("show");};
   document.getElementById("m-close").onclick=()=>overlay.classList.remove("show");
   overlay.onclick=(e)=>{if(e.target===overlay)overlay.classList.remove("show");};
   document.getElementById("m-copy").onclick=async()=>{
