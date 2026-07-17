@@ -2,3 +2,8 @@ node_modules/
 test-results/
 playwright-report/
 .DS_Store
+
+# D1: Worker deploy config — environment-specific, not secrets itself but
+# not meant to be shared (see worker/README.md).
+worker/wrangler.toml
+worker/.dev.vars
