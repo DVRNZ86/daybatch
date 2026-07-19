@@ -91,6 +91,18 @@ export function refreshPremiumStatus(){
   const badge=document.getElementById("hdr-premium");
   const premium=isPremium();
   if(badge)badge.classList.toggle("hide",!premium);
+  // The premium overlay flips between its two jobs: selling (buy buttons +
+  // code entry) for free users, and showing the owner their code (their key
+  // to a second device / new phone — never shown anywhere else) once premium.
+  ["pm-buy","pm-or","pm-code","pm-redeem"].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el)el.classList.toggle("hide",premium);
+  });
+  const mine=document.getElementById("pm-mycode");
+  if(mine){
+    mine.classList.toggle("hide",!premium);
+    if(premium)document.getElementById("pm-mycode-val").textContent=getEntitlement().code;
+  }
   if(!statusEl||!openBtn)return;
   if(premium){
     const tier=getEntitlement().tier;
@@ -169,6 +181,14 @@ export function initUI(){
     b.onclick=()=>{location.href=PAYMENT_LINKS[b.dataset.tier];};
   });
   document.getElementById("pm-close").onclick=()=>premiumov.classList.remove("show");
+  document.getElementById("pm-mycode-copy").onclick=async()=>{
+    const b=document.getElementById("pm-mycode-copy");
+    try{
+      await navigator.clipboard.writeText(document.getElementById("pm-mycode-val").textContent);
+      b.textContent="Copied ✓";
+    }catch(e){b.textContent="Select & copy above";}
+    setTimeout(()=>{b.textContent="Copy code";},1600);
+  };
   premiumov.onclick=(e)=>{if(e.target===premiumov)premiumov.classList.remove("show");};
   document.getElementById("pm-redeem").onclick=async()=>{
     const input=document.getElementById("pm-code");

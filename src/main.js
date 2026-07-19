@@ -19,7 +19,7 @@ const checkoutSession=bootParams.get("session_id");
 if(checkoutSession){
   history.replaceState(null,"",location.pathname);
   claimSession(checkoutSession).then(r=>{
-    showPremiumResult(r.ok, r.ok?"Premium unlocked ✓ — thanks for supporting Daybatch!":r.error);
+    showPremiumResult(r.ok, r.ok?"Premium unlocked ✓ — save your code above; it's your key to a second device.":r.error);
   });
 }
 

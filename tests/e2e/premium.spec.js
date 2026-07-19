@@ -50,6 +50,11 @@ test("lifetime premium: crown badge shown, help overlay reflects tier, no networ
   await expect(page.locator("#h-premium-status")).toHaveText("Premium · Lifetime");
   await expect(page.locator("#h-premium-open")).toHaveText("Manage");
   expect(calls).toEqual([]); // lifetime never re-verifies
+
+  // Manage view shows the owner's code for activating a second device
+  await page.locator("#h-premium-open").click();
+  await expect(page.locator("#pm-mycode-val")).toHaveText("pi_x.abc");
+  await expect(page.locator("#pm-buy")).toBeHidden();
 });
 
 test("expired subscription: treated as free; boot re-verify revokes it for real on a definitive 404", async ({ page }) => {
@@ -101,6 +106,14 @@ test("redeem overlay: bad code shows the server's rejection; good code unlocks a
   await page.locator("#pm-redeem").click();
   await expect(page.locator("#pm-msg")).toHaveText(/unlocked/i);
   await expect(page.locator("#hdr-premium")).toBeVisible();
+
+  // once premium, the overlay swaps selling UI for the owner's code (their
+  // key to a second device — shown nowhere else)
+  await expect(page.locator("#pm-mycode")).toBeVisible();
+  await expect(page.locator("#pm-mycode-val")).toHaveText("GOODCODE");
+  await expect(page.locator("#pm-buy")).toBeHidden();
+  await expect(page.locator("#pm-code")).toBeHidden();
+  await expect(page.locator("#pm-redeem")).toBeHidden();
 });
 
 test("post-checkout: ?session_id= claims, redeems, confirms, and scrubs the URL", async ({ page }) => {

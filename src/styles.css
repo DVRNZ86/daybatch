@@ -230,6 +230,13 @@
 #pm-buy { margin-bottom:10px; }
 #pm-buy .btn small { font-size:10px; color:var(--faded); font-weight:600; }
 #pm-or { font-size:11px; color:var(--faded); font-weight:600; text-align:center; margin-bottom:8px; letter-spacing:.06em; }
+#pm-mycode { margin-bottom:4px; }
+#pm-mycode-lb { font-size:9px; letter-spacing:.14em; color:var(--faded); font-weight:600; margin-bottom:6px; }
+#pm-mycode-val {
+  display:block; background:var(--paper); border:1px solid var(--grid); border-radius:10px;
+  padding:10px 12px; font-family:ui-monospace,monospace; font-size:12px; word-break:break-all;
+  color:var(--ink); margin-bottom:8px; user-select:all; -webkit-user-select:all;
+}
 #pm-msg { font-size:12px; font-weight:600; min-height:16px; margin:8px 0; }
 #pm-msg.ok { color:var(--win); }
 #pm-msg.err { color:var(--bad); }

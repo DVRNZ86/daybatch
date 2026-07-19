@@ -103,6 +103,21 @@ periodic trigger exists client-side yet. Add one (e.g. on app focus, check
 if the stored `expiresAt` is within a few days of expiring and silently
 re-redeem) once there's a real subscription to test it against.
 
+## Support playbook: "my code says it's used up" / device transfer
+
+A code works on 2 devices (distinct device ids, tracked in KV). There is no
+self-service deactivation — by design (A9: simple beats airtight). When a
+legitimate customer runs out of slots (new phone + old phone + cleared
+browser data, etc.), reset their code's activation list:
+
+```
+cd worker
+npx wrangler kv key delete --binding CODES "redeem:<their full code>"
+```
+
+Their next redeem starts a fresh device count. The code itself never changes
+and never expires — signature verification needs no KV entry.
+
 ## Testing
 
 The Worker's pure crypto/parsing logic (`hmacHex`, `verifyCode`, `makeCode`,
