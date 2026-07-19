@@ -28,6 +28,14 @@ Three endpoints, no database beyond one KV namespace for redemption counts:
    `https://daybatch.app/?session_id={CHECKOUT_SESSION_ID}`
    (Stripe substitutes the real session id into that template.)
 
+   **Done in TEST MODE, 15 Jul 2026** (live-mode links/prices must be
+   re-created and these values swapped before launch):
+   | Tier | Payment Link | Price id |
+   |---|---|---|
+   | Monthly $2 | https://buy.stripe.com/test_4gM9AUbZjfYO1mi7NX8Zq00 | `price_1Tur7XJNtMcPWsbdy3QzVx6N` |
+   | Annual $20 | https://buy.stripe.com/test_9B6bJ29Rb27Y5Cyecl8Zq01 | `price_1TurFvJNtMcPWsbduVxZC2ER` |
+   | Lifetime $30 | https://buy.stripe.com/test_7sY3cwbZj13U5Cy3xH8Zq02 | `price_1TurIBJNtMcPWsbdPEbmAqgp` |
+
 2. **Cloudflare account**, if not already created. Install `wrangler` (the
    Cloudflare Workers CLI) — this is a one-off global/dev tool, not a project
    dependency:
