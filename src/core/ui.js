@@ -4,7 +4,7 @@
 import { shareText, batchCard, gameLine, puzzleLabel, isPreseason, PRESEASON_NOTE } from "./share.js";
 import { getHistory, localDateKey, getEntitlement, isPremium } from "./storage.js";
 import { GAMES, dayScore, batchStreak, recordsFor, isPerfectBatch, perfectStreak } from "./streaks.js";
-import { redeemCode } from "./entitlement.js";
+import { redeemCode, PAYMENT_LINKS } from "./entitlement.js";
 
 export function el(html){const t=document.createElement("template");t.innerHTML=html.trim();return t.content.firstChild;}
 
@@ -128,6 +128,16 @@ export function openArchive(onPick){
 }
 
 let premiumov;
+
+// D1: post-checkout feedback — opens the premium overlay with a result
+// message (main.js calls this after the ?session_id= auto-claim resolves).
+export function showPremiumResult(ok,message){
+  const msg=document.getElementById("pm-msg");
+  msg.textContent=message;msg.className=ok?"ok":"err";
+  refreshPremiumStatus();
+  premiumov.classList.add("show");
+}
+
 export function initUI(){
   overlay=document.getElementById("overlay");modal=document.getElementById("modal");
   helpov=document.getElementById("helpov");
@@ -153,6 +163,11 @@ export function initUI(){
     document.getElementById("pm-msg").className="";
     premiumov.classList.add("show");
   };
+  // Purchase buttons: same-tab navigation to Stripe's hosted checkout; its
+  // Payment Link redirects back here with ?session_id= for the auto-claim.
+  document.querySelectorAll("#pm-buy button").forEach(b=>{
+    b.onclick=()=>{location.href=PAYMENT_LINKS[b.dataset.tier];};
+  });
   document.getElementById("pm-close").onclick=()=>premiumov.classList.remove("show");
   premiumov.onclick=(e)=>{if(e.target===premiumov)premiumov.classList.remove("show");};
   document.getElementById("pm-redeem").onclick=async()=>{

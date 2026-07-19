@@ -21,7 +21,7 @@ const {
   getGameState, setGameState, clearGameState, addHistory, getHistory,
   getLastSeenDate, setLastSeenDate,
   getEntitlement, setEntitlement, clearEntitlement, isPremium,
-  getBestTime, setBestTime
+  getBestTime, setBestTime, getDeviceId
 } = S;
 
 function fresh(initial = {}) {
@@ -151,6 +151,15 @@ test("best times: absent by default, round-trip per game, other games untouched"
   _resetCache();
   assert.equal(getBestTime("sonar"), 42000, "earlier game's best survives a later write");
   assert.equal(getBestTime("tally"), 8000);
+});
+
+test("getDeviceId mints once and stays stable across reloads", () => {
+  fresh();
+  const id = getDeviceId();
+  assert.ok(id.length >= 8);
+  assert.equal(getDeviceId(), id, "same within a session");
+  _resetCache();
+  assert.equal(getDeviceId(), id, "survives a reload (persisted on the root)");
 });
 
 test("lastSeenDate round-trips", () => {

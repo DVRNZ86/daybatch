@@ -138,6 +138,19 @@ export function isPremium() {
   return typeof e.expiresAt === "number" && Date.now() < e.expiresAt;
 }
 
+// Stable random device id, minted once per install (additive root field).
+// Sent with every redeem so the Worker's activation cap counts devices, not
+// calls — see worker/daybatch-worker.js applyActivation().
+export function getDeviceId() {
+  const root = loadRoot();
+  if (!root.deviceId) {
+    root.deviceId = (crypto.randomUUID && crypto.randomUUID()) ||
+      Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 10);
+    saveRoot();
+  }
+  return root.deviceId;
+}
+
 // ---- D1: Endless Crossing best run (premium) ----
 // Optional additive field on the schema-1 root; absent means no run yet.
 // Ephemeral gameplay (never touches history/streaks) — only the best score
