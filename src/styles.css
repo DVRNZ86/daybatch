@@ -240,6 +240,7 @@
 #pm-msg { font-size:12px; font-weight:600; min-height:16px; margin:8px 0; }
 #pm-msg.ok { color:var(--win); }
 #pm-msg.err { color:var(--bad); }
+#pm-portal { display:block; text-align:center; padding:10px; font-size:13px; font-weight:600; color:var(--blue); text-decoration:none; }
 #pm-close { margin-top:4px; width:100%; padding:10px; border:none; background:transparent; color:var(--faded); font-weight:600; font-family:inherit; font-size:13px; cursor:pointer; }
 
 /* D1: archive date-picker overlay */

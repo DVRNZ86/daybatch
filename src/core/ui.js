@@ -4,7 +4,7 @@
 import { shareText, batchCard, gameLine, puzzleLabel, isPreseason, PRESEASON_NOTE } from "./share.js";
 import { getHistory, localDateKey, getEntitlement, isPremium } from "./storage.js";
 import { GAMES, dayScore, batchStreak, recordsFor, isPerfectBatch, perfectStreak } from "./streaks.js";
-import { redeemCode, PAYMENT_LINKS } from "./entitlement.js";
+import { redeemCode, PAYMENT_LINKS, PORTAL_URL } from "./entitlement.js";
 
 export function el(html){const t=document.createElement("template");t.innerHTML=html.trim();return t.content.firstChild;}
 
@@ -102,6 +102,14 @@ export function refreshPremiumStatus(){
   if(mine){
     mine.classList.toggle("hide",!premium);
     if(premium)document.getElementById("pm-mycode-val").textContent=getEntitlement().code;
+  }
+  // Subscribers manage/cancel via Stripe's Customer Portal (checkout-email
+  // identity, no accounts here). Lifetime has nothing to manage.
+  const portal=document.getElementById("pm-portal");
+  if(portal){
+    const sub=premium&&getEntitlement().tier!=="lifetime";
+    portal.classList.toggle("hide",!sub);
+    if(sub)portal.href=PORTAL_URL;
   }
   if(!statusEl||!openBtn)return;
   if(premium){

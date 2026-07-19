@@ -15,6 +15,12 @@ export const PAYMENT_LINKS = {
   lifetime: "https://buy.stripe.com/test_7sY3cwbZj13U5Cy3xH8Zq02"
 };
 
+// Stripe Customer Portal login — TEST MODE (swap for live at launch, and
+// activate the portal in live mode first; settings don't copy across).
+// Subscribers cancel/manage there; identity is their checkout email, so no
+// accounts on our side. Irrelevant to lifetime purchases.
+export const PORTAL_URL = "https://billing.stripe.com/p/login/test_4gM9AUbZjfYO1mi7NX8Zq00";
+
 // How close to the entitlement's expiresAt we start silently re-verifying.
 // expiresAt = verification time + 2 weeks (Worker's OFFLINE_GRACE_MS), so
 // re-verifying once inside the final week ≈ the weekly cadence A9 asks for,

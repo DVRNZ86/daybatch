@@ -51,10 +51,12 @@ test("lifetime premium: crown badge shown, help overlay reflects tier, no networ
   await expect(page.locator("#h-premium-open")).toHaveText("Manage");
   expect(calls).toEqual([]); // lifetime never re-verifies
 
-  // Manage view shows the owner's code for activating a second device
+  // Manage view shows the owner's code for activating a second device;
+  // no portal link — lifetime has no subscription to manage
   await page.locator("#h-premium-open").click();
   await expect(page.locator("#pm-mycode-val")).toHaveText("pi_x.abc");
   await expect(page.locator("#pm-buy")).toBeHidden();
+  await expect(page.locator("#pm-portal")).toBeHidden();
 });
 
 test("expired subscription: treated as free; boot re-verify revokes it for real on a definitive 404", async ({ page }) => {
@@ -84,6 +86,12 @@ test("aging subscription: boot re-verify refreshes the grace window silently", a
   await expect
     .poll(async () => page.evaluate(() => JSON.parse(localStorage.getItem("daybatch:v1")).premium.expiresAt))
     .toBe(newExpiry);
+
+  // subscribers get the Stripe Customer Portal link in the Manage view
+  await page.locator("button:text('?')").first().click();
+  await page.locator("#h-premium-open").click();
+  await expect(page.locator("#pm-portal")).toBeVisible();
+  await expect(page.locator("#pm-portal")).toHaveAttribute("href", /billing\.stripe\.com/);
 });
 
 test("redeem overlay: bad code shows the server's rejection; good code unlocks and shows the crown", async ({ page }) => {

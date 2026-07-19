@@ -36,6 +36,12 @@ Three endpoints, no database beyond one KV namespace for redemption counts:
    | Annual $20 | https://buy.stripe.com/test_9B6bJ29Rb27Y5Cyecl8Zq01 | `price_1TurFvJNtMcPWsbduVxZC2ER` |
    | Lifetime $30 | https://buy.stripe.com/test_7sY3cwbZj13U5Cy3xH8Zq02 | `price_1TurIBJNtMcPWsbdPEbmAqgp` |
 
+   **Customer Portal** (subscribers cancel/manage there; identity = checkout
+   email, no accounts our side) — activated in TEST MODE 19 Jul 2026, login
+   link in `src/core/entitlement.js` PORTAL_URL. At launch: activate the
+   portal again in LIVE mode (settings don't copy across) and swap
+   PORTAL_URL together with PAYMENT_LINKS and the PRICE_* secrets.
+
 2. **Cloudflare account**, if not already created. Install `wrangler` (the
    Cloudflare Workers CLI) — this is a one-off global/dev tool, not a project
    dependency:
