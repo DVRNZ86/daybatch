@@ -33,7 +33,8 @@
 //   env.CODE_SECRET         HMAC signing key for codes (independent of Stripe)
 //   env.PRICE_MONTHLY, env.PRICE_YEARLY   Stripe Price IDs, to tell the two
 //                                          subscription tiers apart
-//   env.ALLOWED_ORIGIN      e.g. "https://daybatch.app" (CORS)
+//   env.ALLOWED_ORIGIN      CORS allowlist; comma-separated, e.g.
+//                           "https://daybatch.app,http://localhost:4173"
 
 export const REDEMPTION_CAP = 2;
 export const OFFLINE_GRACE_MS = 14 * 24 * 60 * 60 * 1000; // 2 weeks
@@ -74,6 +75,18 @@ export function tierForStripeId(id) {
   if (id.startsWith("pi_")) return "lifetime";
   if (id.startsWith("sub_")) return "subscription"; // monthly vs yearly resolved from live Stripe data
   return null;
+}
+
+// ALLOWED_ORIGIN may be a comma-separated list (e.g. production + localhost
+// for pre-merge testing). CORS allows exactly one origin per response, so:
+// echo the request's own origin when it's on the list, else fall back to the
+// list's first entry (the browser then blocks the response — the fallback is
+// just a deterministic header value, not an access grant).
+export function resolveOrigin(allowed, requestOrigin) {
+  if (!allowed) return null;
+  const list = allowed.split(",").map(s => s.trim()).filter(Boolean);
+  if (!list.length) return null;
+  return list.includes(requestOrigin) ? requestOrigin : list[0];
 }
 
 // ---- Cloudflare/Stripe runtime glue ----
@@ -167,7 +180,7 @@ async function handleWebhook(req, env) {
 
 export default {
   async fetch(req, env) {
-    const origin = env.ALLOWED_ORIGIN;
+    const origin = resolveOrigin(env.ALLOWED_ORIGIN, req.headers.get("Origin") || "");
     if (req.method === "OPTIONS") {
       return new Response(null, { status: 204, headers: {
         "Access-Control-Allow-Origin": origin,

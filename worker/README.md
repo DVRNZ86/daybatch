@@ -69,7 +69,9 @@ Three endpoints, no database beyond one KV namespace for redemption counts:
    wrangler secret put CODE_SECRET       # any long random string, independent of Stripe
    wrangler secret put PRICE_MONTHLY     # Stripe Price id for the $2/mo Payment Link
    wrangler secret put PRICE_YEARLY      # Stripe Price id for the $20/yr Payment Link
-   wrangler secret put ALLOWED_ORIGIN    # https://daybatch.app
+   wrangler secret put ALLOWED_ORIGIN    # comma-separated CORS allowlist:
+                                         # https://daybatch.app,http://localhost:4173
+                                         # (drop the localhost entry once D1 ships)
    ```
 
 6. **Deploy**:

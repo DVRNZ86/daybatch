@@ -4,7 +4,7 @@
 // are exercised manually once Darren deploys (see worker/README.md).
 import test from "node:test";
 import assert from "node:assert/strict";
-import { hmacHex, timingSafeEqual, makeCode, verifyCode, tierForStripeId, REDEMPTION_CAP, OFFLINE_GRACE_MS } from "../../worker/daybatch-worker.js";
+import { hmacHex, timingSafeEqual, makeCode, verifyCode, tierForStripeId, resolveOrigin, REDEMPTION_CAP, OFFLINE_GRACE_MS } from "../../worker/daybatch-worker.js";
 
 test("hmacHex is deterministic and depends on both secret and message", async () => {
   const a = await hmacHex("secret1", "message");
@@ -47,6 +47,18 @@ test("tierForStripeId maps Stripe id prefixes; unrecognised prefixes return null
   assert.equal(tierForStripeId("sub_1AbCdEfGhIjKlMn"), "subscription");
   assert.equal(tierForStripeId("cus_randomvalue"), null);
   assert.equal(tierForStripeId(""), null);
+});
+
+test("resolveOrigin: comma-separated allowlist echoes a listed origin, falls back to the first entry otherwise", () => {
+  const allowed = "https://daybatch.app,http://localhost:4173";
+  assert.equal(resolveOrigin(allowed, "https://daybatch.app"), "https://daybatch.app");
+  assert.equal(resolveOrigin(allowed, "http://localhost:4173"), "http://localhost:4173");
+  assert.equal(resolveOrigin(allowed, "https://evil.example"), "https://daybatch.app", "unlisted origin gets the first entry (browser then blocks)");
+  assert.equal(resolveOrigin(allowed, ""), "https://daybatch.app");
+  assert.equal(resolveOrigin("https://daybatch.app", "https://daybatch.app"), "https://daybatch.app", "single-entry list still works");
+  assert.equal(resolveOrigin(" https://a.example , https://b.example ", "https://b.example"), "https://b.example", "whitespace around entries is tolerated");
+  assert.equal(resolveOrigin(undefined, "https://daybatch.app"), null, "unset env var");
+  assert.equal(resolveOrigin("", "https://daybatch.app"), null, "empty env var");
 });
 
 test("contract constants match the PLAN.md A9 design", () => {
