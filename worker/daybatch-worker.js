@@ -13,13 +13,16 @@
 //     the underlying payment_intent (lifetime) or subscription (monthly/
 //     yearly) id, and returns it so the client can redeem immediately.
 //
-//   POST /redeem  { code } -> { tier, expiresAt }
+//   POST /redeem  { code, device } -> { tier, expiresAt }
 //     Called by the app's entitlement.js (src/core/entitlement.js). Verifies
 //     the code's HMAC signature (self-contained — no lookup needed to check
 //     authenticity), enforces the 2-activation cap via KV, and for
 //     subscriptions checks live Stripe status. expiresAt is a local
 //     re-verification deadline (see README's "offline grace" note), not the
 //     Stripe billing period end.
+//     `device` is a random UUID the client mints once and reuses forever;
+//     the cap counts DISTINCT devices, not redeem calls — a known device
+//     re-verifying (weekly, for subscriptions) never consumes an activation.
 //
 //   POST /webhook
 //     Verifies Stripe's webhook signature. Not on the critical path (the
@@ -77,6 +80,22 @@ export function tierForStripeId(id) {
   return null;
 }
 
+// Pure activation-cap logic: given the KV-stored device list (raw JSON string
+// or null), the requesting device, and the cap, decide whether this redeem is
+// allowed and what the updated list is. A device already on the list is always
+// allowed (that's a re-verification, not a new activation); junk KV data
+// degrades to an empty list rather than throwing.
+export function applyActivation(rawList, device, cap) {
+  let devices = [];
+  if (rawList) {
+    try { devices = JSON.parse(rawList); } catch (e) { devices = []; }
+  }
+  if (!Array.isArray(devices)) devices = [];
+  if (devices.includes(device)) return { allowed: true, changed: false, devices };
+  if (devices.length >= cap) return { allowed: false, changed: false, devices };
+  return { allowed: true, changed: true, devices: [...devices, device] };
+}
+
 // ALLOWED_ORIGIN may be a comma-separated list (e.g. production + localhost
 // for pre-merge testing). CORS allows exactly one origin per response, so:
 // echo the request's own origin when it's on the list, else fall back to the
@@ -131,22 +150,22 @@ async function handleClaim(req, env, origin) {
 }
 
 async function handleRedeem(req, env, origin) {
-  const { code } = await req.json();
-  if (!code) return json({ error: "code required" }, 400, origin);
+  const { code, device } = await req.json();
+  if (!code || !device) return json({ error: "code and device required" }, 400, origin);
 
   const id = await verifyCode(env.CODE_SECRET, code);
   if (!id) return json({ error: "not recognised" }, 404, origin);
 
-  const countKey = "redeem:" + code;
-  const count = parseInt((await env.CODES.get(countKey)) || "0", 10);
+  const listKey = "redeem:" + code;
   // Deliberately not airtight (KV is eventually consistent, so a tight race
   // near the cap can slip through) — the cap's job is discouraging casual
   // sharing, not preventing it outright (PLAN.md A9, accepted trade-off).
-  if (count >= REDEMPTION_CAP) return json({ error: "redemption cap reached" }, 409, origin);
+  const act = applyActivation(await env.CODES.get(listKey), device, REDEMPTION_CAP);
+  if (!act.allowed) return json({ error: "redemption cap reached" }, 409, origin);
 
   const kind = tierForStripeId(id);
   if (kind === "lifetime") {
-    await env.CODES.put(countKey, String(count + 1));
+    if (act.changed) await env.CODES.put(listKey, JSON.stringify(act.devices));
     return json({ tier: "lifetime", expiresAt: null }, 200, origin);
   }
   if (kind === "subscription") {
@@ -161,7 +180,7 @@ async function handleRedeem(req, env, origin) {
     }
     const priceId = sub.items && sub.items.data && sub.items.data[0] && sub.items.data[0].price && sub.items.data[0].price.id;
     const tier = priceId === env.PRICE_YEARLY ? "yearly" : "monthly";
-    await env.CODES.put(countKey, String(count + 1));
+    if (act.changed) await env.CODES.put(listKey, JSON.stringify(act.devices));
     return json({ tier, expiresAt: Date.now() + OFFLINE_GRACE_MS }, 200, origin);
   }
   return json({ error: "unrecognised id type" }, 500, origin);

@@ -4,7 +4,7 @@
 // are exercised manually once Darren deploys (see worker/README.md).
 import test from "node:test";
 import assert from "node:assert/strict";
-import { hmacHex, timingSafeEqual, makeCode, verifyCode, tierForStripeId, resolveOrigin, REDEMPTION_CAP, OFFLINE_GRACE_MS } from "../../worker/daybatch-worker.js";
+import { hmacHex, timingSafeEqual, makeCode, verifyCode, tierForStripeId, resolveOrigin, applyActivation, REDEMPTION_CAP, OFFLINE_GRACE_MS } from "../../worker/daybatch-worker.js";
 
 test("hmacHex is deterministic and depends on both secret and message", async () => {
   const a = await hmacHex("secret1", "message");
@@ -59,6 +59,29 @@ test("resolveOrigin: comma-separated allowlist echoes a listed origin, falls bac
   assert.equal(resolveOrigin(" https://a.example , https://b.example ", "https://b.example"), "https://b.example", "whitespace around entries is tolerated");
   assert.equal(resolveOrigin(undefined, "https://daybatch.app"), null, "unset env var");
   assert.equal(resolveOrigin("", "https://daybatch.app"), null, "empty env var");
+});
+
+test("applyActivation: cap counts distinct devices; a known device re-verifying never consumes an activation", () => {
+  // first device on a fresh code
+  let r = applyActivation(null, "dev-A", 2);
+  assert.deepEqual(r, { allowed: true, changed: true, devices: ["dev-A"] });
+
+  // same device again (weekly subscription re-verify) — allowed, no growth
+  r = applyActivation(JSON.stringify(["dev-A"]), "dev-A", 2);
+  assert.deepEqual(r, { allowed: true, changed: false, devices: ["dev-A"] });
+
+  // second distinct device — fills the cap
+  r = applyActivation(JSON.stringify(["dev-A"]), "dev-B", 2);
+  assert.deepEqual(r, { allowed: true, changed: true, devices: ["dev-A", "dev-B"] });
+
+  // third device — rejected; both known devices still allowed
+  assert.equal(applyActivation(JSON.stringify(["dev-A", "dev-B"]), "dev-C", 2).allowed, false);
+  assert.equal(applyActivation(JSON.stringify(["dev-A", "dev-B"]), "dev-A", 2).allowed, true);
+  assert.equal(applyActivation(JSON.stringify(["dev-A", "dev-B"]), "dev-B", 2).allowed, true);
+
+  // junk KV data degrades to an empty list rather than throwing
+  assert.deepEqual(applyActivation("{not json", "dev-A", 2), { allowed: true, changed: true, devices: ["dev-A"] });
+  assert.deepEqual(applyActivation('"a string"', "dev-A", 2), { allowed: true, changed: true, devices: ["dev-A"] });
 });
 
 test("contract constants match the PLAN.md A9 design", () => {
