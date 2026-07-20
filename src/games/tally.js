@@ -2,7 +2,7 @@
 // Pure helpers (neighbors/applyOp/solveGrid/gen) are exported for logic
 // tests; initTally() wires the DOM.
 import { mulberry32, dailySeed } from "../core/rng.js";
-import { showResult, showHelp, showSlimBar, openArchive } from "../core/ui.js";
+import { showResult, showHelp, showSlimBar, openArchive, suppressZoomGestures } from "../core/ui.js";
 import { getGameState, setGameState, addHistory, localDateKey, isPremium, getBestTime, setBestTime } from "../core/storage.js";
 import { createStopwatch, formatMs } from "../core/timer.js";
 import { SITE_URL } from "../core/share.js";
@@ -151,8 +151,8 @@ function buildDOM(){
     </div>
     <div class="btnrow">
       <button class="btn" id="ty-clear">Clear path</button>
-      <button class="btn" id="ty-new">New puzzle</button>
-      <button class="btn pri" id="ty-today">Today's</button>
+      <button class="btn${isDaily?"":" pri"}" id="ty-new">New puzzle</button>
+      <button class="btn${isDaily?" pri":""}" id="ty-today">Today's</button>
       ${isPremium()?'<button class="btn" id="ty-timed">⏱ Timed</button><button class="btn" id="ty-archive">📅 Archive</button>':""}
     </div>
     <div class="slimhost"></div>`;
@@ -167,19 +167,7 @@ function buildDOM(){
   const timedBtn=pane.querySelector("#ty-timed");if(timedBtn)timedBtn.onclick=()=>startTimed();
   const archiveBtn=pane.querySelector("#ty-archive");if(archiveBtn)archiveBtn.onclick=()=>openArchive(d=>startArchive(d));
   boardEl.addEventListener("touchmove",e=>e.preventDefault(),{passive:false});
-  // touch-action:none on #ty-board (needed for the custom drag gesture)
-  // doesn't reliably stop double-tap/pinch zoom on iOS Safari — a known
-  // WebKit quirk where the accessibility zoom gesture ignores it. Once
-  // zoomed, every later tap both pans the page AND still lands as a move,
-  // making the board unplayable. Suppress both gestures explicitly, scoped
-  // to the board so nothing elsewhere in the app is affected.
-  let lastTouchEndTs=0;
-  boardEl.addEventListener("touchend",e=>{
-    const now=Date.now();
-    if(now-lastTouchEndTs<=300)e.preventDefault();
-    lastTouchEndTs=now;
-  },{passive:false});
-  boardEl.addEventListener("gesturestart",e=>e.preventDefault());
+  suppressZoomGestures(boardEl);
   boardEl.addEventListener("pointerdown",onDown);
   boardEl.addEventListener("pointermove",onMove);
   boardEl.addEventListener("pointerup",onUp);

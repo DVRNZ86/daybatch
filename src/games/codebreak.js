@@ -229,8 +229,8 @@ function render(){
     <div class="board"><div class="cb-rows">${rows}${inputRow}</div>${hintLine}</div>
     ${keys}
     <div class="btnrow">
-      <button class="btn" id="cb-new">New puzzle</button>
-      <button class="btn pri" id="cb-today">Today's</button>
+      <button class="btn${isDaily?"":" pri"}" id="cb-new">New puzzle</button>
+      <button class="btn${isDaily?" pri":""}" id="cb-today">Today's</button>
       ${isPremium()?'<button class="btn" id="cb-repeats">🔁 Repeats (Hard)</button><button class="btn" id="cb-timed">⏱ Timed</button><button class="btn" id="cb-hint">💡 Hint</button><button class="btn" id="cb-archive">📅 Archive</button>':""}
     </div>
     <div class="slimhost"></div>`;

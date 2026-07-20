@@ -3,7 +3,7 @@
 // found/hints counts — v13 hardcoded 0, so 🔀 Shuffle reset the visible stats.
 // gen()/counts()/canForm() are exported for logic tests; initLexi() wires the DOM.
 import { mulberry32, dailySeed } from "../core/rng.js";
-import { showResult, showHelp, showSlimBar, openArchive } from "../core/ui.js";
+import { showResult, showHelp, showSlimBar, openArchive, suppressZoomGestures } from "../core/ui.js";
 import { getGameState, setGameState, addHistory, localDateKey, isPremium, getBestTime, setBestTime } from "../core/storage.js";
 import { createStopwatch, formatMs } from "../core/timer.js";
 import { SITE_URL } from "../core/share.js";
@@ -123,8 +123,8 @@ function build(){
       </div>
     </div>
     <div class="btnrow">
-      <button class="btn" id="lx-new">New puzzle</button>
-      <button class="btn pri" id="lx-today">Today's</button>
+      <button class="btn${isDaily?"":" pri"}" id="lx-new">New puzzle</button>
+      <button class="btn${isDaily?" pri":""}" id="lx-today">Today's</button>
       ${isPremium()?'<button class="btn" id="lx-timed">⏱ Timed</button><button class="btn" id="lx-archive">📅 Archive</button>':""}
     </div>
     <div class="slimhost"></div>`;
@@ -146,6 +146,7 @@ function build(){
   const archiveBtn=pane.querySelector("#lx-archive");if(archiveBtn)archiveBtn.onclick=()=>openArchive(d=>startArchive(d));
   wheelEl.addEventListener("touchmove",e=>e.preventDefault(),{passive:false});
   wheelEl.addEventListener("touchstart",e=>{if(e.touches.length===1)e.preventDefault();},{passive:false});
+  suppressZoomGestures(wheelEl);
   wheelEl.addEventListener("pointerdown",onDown);
   wheelEl.addEventListener("pointermove",onMove);
   wheelEl.addEventListener("pointerup",onUp);

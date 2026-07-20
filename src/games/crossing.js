@@ -227,8 +227,8 @@ function render(){
     <div class="board"><div id="cr-grid">${cells}</div></div>
     <div class="btnrow">
       ${isDaily||endless||timed||archiveDate?"":'<button class="btn" id="cr-retry">Retry</button>'}
-      <button class="btn" id="cr-new">New puzzle</button>
-      <button class="btn pri" id="cr-today">Today's</button>
+      <button class="btn${isDaily?"":" pri"}" id="cr-new">New puzzle</button>
+      <button class="btn${isDaily?" pri":""}" id="cr-today">Today's</button>
       ${isPremium()?'<button class="btn" id="cr-endless">♾️ Endless</button><button class="btn" id="cr-timed">⏱ Timed</button><button class="btn" id="cr-archive">📅 Archive</button>':""}
     </div>
     <div class="slimhost"></div>`;

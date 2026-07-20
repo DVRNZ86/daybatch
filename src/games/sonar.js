@@ -178,8 +178,8 @@ function render(){
       ${grid}
     </div>
     <div class="btnrow">
-      <button class="btn" id="sn-new">New puzzle</button>
-      <button class="btn pri" id="sn-today">Today's</button>
+      <button class="btn${isDaily?"":" pri"}" id="sn-new">New puzzle</button>
+      <button class="btn${isDaily?" pri":""}" id="sn-today">Today's</button>
       ${isPremium()?'<button class="btn" id="sn-timed">⏱ Timed</button><button class="btn" id="sn-hint">💡 Hint</button><button class="btn" id="sn-archive">📅 Archive</button>':""}
     </div>
     <div class="slimhost"></div>`;
