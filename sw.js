@@ -4,7 +4,7 @@
 // VERSION must match the footer version in index.html — a logic test enforces
 // this. EVERY deploy (patches included) must bump both, or installed clients
 // keep serving the previous shell from cache.
-const VERSION = "v0.B4.3";
+const VERSION = "v0.D1.4";
 const CACHE = "daybatch-" + VERSION;
 
 const SHELL = [
@@ -18,6 +18,8 @@ const SHELL = [
   "/src/core/storage.js",
   "/src/core/streaks.js",
   "/src/core/ui.js",
+  "/src/core/entitlement.js",
+  "/src/core/timer.js",
   "/src/games/codebreak.js",
   "/src/games/crossing.js",
   "/src/games/lexi.js",

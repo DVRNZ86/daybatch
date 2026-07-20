@@ -1,7 +1,8 @@
 // Boot + tab router + lazy init. Ported verbatim from v13; the only change is
 // that game init functions live in modules and UI wiring happens via initUI().
-import { initUI, refreshReport } from "./core/ui.js";
+import { initUI, refreshReport, refreshPremiumStatus, showPremiumResult } from "./core/ui.js";
 import { getLastSeenDate, setLastSeenDate, localDateKey, getInstallHintShown, setInstallHintShown } from "./core/storage.js";
+import { claimSession, maybeReverify } from "./core/entitlement.js";
 import { initTally } from "./games/tally.js";
 import { initCrossing } from "./games/crossing.js";
 import { initSonar } from "./games/sonar.js";
@@ -9,6 +10,25 @@ import { initCodebreak } from "./games/codebreak.js";
 import { initLexi } from "./games/lexi.js";
 
 initUI();
+
+// D1: post-checkout auto-claim. Stripe's Payment Links redirect back to
+// "/?session_id=cs_..."; exchange it for a code and redeem in one step, then
+// scrub the parameter so a reload/share of the URL never re-claims.
+const bootParams=new URLSearchParams(location.search);
+const checkoutSession=bootParams.get("session_id");
+if(checkoutSession){
+  history.replaceState(null,"",location.pathname);
+  claimSession(checkoutSession).then(r=>{
+    showPremiumResult(r.ok, r.ok?"Premium unlocked ✓ — save your code above; it's your key to a second device.":r.error);
+  });
+}
+
+// D1: subscription upkeep — silently re-verify when the entitlement enters
+// its final grace week; revoked/cancelled subs drop premium here.
+maybeReverify().then(changed=>{ if(changed)refreshPremiumStatus(); });
+document.addEventListener("visibilitychange",()=>{
+  if(document.visibilityState==="visible")maybeReverify().then(changed=>{ if(changed)refreshPremiumStatus(); });
+});
 
 // B4: capture the browser's native install prompt as early as possible —
 // Chrome/Edge on Android/desktop can fire this within moments of load, and a

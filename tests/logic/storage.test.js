@@ -19,7 +19,9 @@ const S = await import("../../src/core/storage.js");
 const {
   SCHEMA, freshRoot, _migrate, _resetCache, loadRoot, saveRoot, localDateKey,
   getGameState, setGameState, clearGameState, addHistory, getHistory,
-  getLastSeenDate, setLastSeenDate
+  getLastSeenDate, setLastSeenDate,
+  getEntitlement, setEntitlement, clearEntitlement, isPremium,
+  getBestTime, setBestTime, getDeviceId
 } = S;
 
 function fresh(initial = {}) {
@@ -100,6 +102,64 @@ test("history keeps the first completion per game+date", () => {
   const h = getHistory();
   assert.equal(h.length, 3);
   assert.equal(h[0].tier, 1);
+});
+
+test("entitlement is absent (free tier) by default", () => {
+  fresh();
+  assert.equal(getEntitlement(), null);
+  assert.equal(isPremium(), false);
+});
+
+test("lifetime entitlement is premium forever, no expiresAt needed", () => {
+  fresh();
+  setEntitlement({ code: "ABC123", tier: "lifetime", verifiedAt: Date.now(), expiresAt: null });
+  _resetCache();
+  assert.equal(isPremium(), true);
+  assert.equal(getEntitlement().tier, "lifetime");
+});
+
+test("subscription entitlement is premium only while expiresAt is in the future", () => {
+  fresh();
+  setEntitlement({ code: "SUB789", tier: "monthly", verifiedAt: Date.now(), expiresAt: Date.now() + 86400000 });
+  _resetCache();
+  assert.equal(isPremium(), true);
+
+  setEntitlement({ code: "SUB789", tier: "yearly", verifiedAt: Date.now(), expiresAt: Date.now() - 1000 });
+  _resetCache();
+  assert.equal(isPremium(), false, "expired subscription is not premium");
+});
+
+test("clearEntitlement reverts to free tier", () => {
+  fresh();
+  setEntitlement({ code: "ABC123", tier: "lifetime", verifiedAt: Date.now(), expiresAt: null });
+  _resetCache();
+  assert.equal(isPremium(), true);
+  clearEntitlement();
+  _resetCache();
+  assert.equal(getEntitlement(), null);
+  assert.equal(isPremium(), false);
+});
+
+test("best times: absent by default, round-trip per game, other games untouched", () => {
+  fresh();
+  assert.equal(getBestTime("sonar"), null);
+  setBestTime("sonar", 42000);
+  _resetCache();
+  assert.equal(getBestTime("sonar"), 42000);
+  assert.equal(getBestTime("tally"), null, "unrelated game stays unset");
+  setBestTime("tally", 8000);
+  _resetCache();
+  assert.equal(getBestTime("sonar"), 42000, "earlier game's best survives a later write");
+  assert.equal(getBestTime("tally"), 8000);
+});
+
+test("getDeviceId mints once and stays stable across reloads", () => {
+  fresh();
+  const id = getDeviceId();
+  assert.ok(id.length >= 8);
+  assert.equal(getDeviceId(), id, "same within a session");
+  _resetCache();
+  assert.equal(getDeviceId(), id, "survives a reload (persisted on the root)");
 });
 
 test("lastSeenDate round-trips", () => {

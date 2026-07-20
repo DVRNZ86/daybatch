@@ -2,8 +2,9 @@
 // Ported verbatim from v13. DOM lookups happen in initUI() (called once from
 // main.js) so game modules stay importable in Node for logic tests.
 import { shareText, batchCard, gameLine, puzzleLabel, isPreseason, PRESEASON_NOTE } from "./share.js";
-import { getHistory, localDateKey } from "./storage.js";
+import { getHistory, localDateKey, getEntitlement, isPremium } from "./storage.js";
 import { GAMES, dayScore, batchStreak, recordsFor, isPerfectBatch, perfectStreak } from "./streaks.js";
+import { redeemCode, PAYMENT_LINKS, PORTAL_URL } from "./entitlement.js";
 
 export function el(html){const t=document.createElement("template");t.innerHTML=html.trim();return t.content.firstChild;}
 
@@ -80,11 +81,90 @@ export function showResult(ctx){ // {win,title,line,share,onAgain,slimHost}
 }
 
 let helpov;
-export function showHelp(html){document.getElementById("h-body").innerHTML=html;helpov.classList.add("show");}
+export function showHelp(html){document.getElementById("h-body").innerHTML=html;refreshPremiumStatus();helpov.classList.add("show");}
+
+// D1: reflects current entitlement in the help overlay's premium row —
+// called on boot, whenever the help overlay opens, and after a redemption.
+export function refreshPremiumStatus(){
+  const statusEl=document.getElementById("h-premium-status");
+  const openBtn=document.getElementById("h-premium-open");
+  const badge=document.getElementById("hdr-premium");
+  const premium=isPremium();
+  if(badge)badge.classList.toggle("hide",!premium);
+  // The premium overlay flips between its two jobs: selling (buy buttons +
+  // code entry) for free users, and showing the owner their code (their key
+  // to a second device / new phone — never shown anywhere else) once premium.
+  ["pm-buy","pm-or","pm-code","pm-redeem"].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el)el.classList.toggle("hide",premium);
+  });
+  const mine=document.getElementById("pm-mycode");
+  if(mine){
+    mine.classList.toggle("hide",!premium);
+    if(premium)document.getElementById("pm-mycode-val").textContent=getEntitlement().code;
+  }
+  // Subscribers manage/cancel via Stripe's Customer Portal (checkout-email
+  // identity, no accounts here). Lifetime has nothing to manage.
+  const portal=document.getElementById("pm-portal");
+  if(portal){
+    const sub=premium&&getEntitlement().tier!=="lifetime";
+    portal.classList.toggle("hide",!sub);
+    if(sub)portal.href=PORTAL_URL;
+  }
+  if(!statusEl||!openBtn)return;
+  if(premium){
+    const tier=getEntitlement().tier;
+    const label=tier==="lifetime"?"Premium · Lifetime":tier==="yearly"?"Premium · Annual":"Premium · Monthly";
+    statusEl.textContent=label;
+    openBtn.textContent="Manage";
+  } else {
+    statusEl.textContent="Free plan";
+    openBtn.textContent="Unlock premium";
+  }
+}
+
+// D1: archive date-picker (premium) — shared by every game. onPick receives
+// a plain Date for the chosen calendar day; callers pass it straight into
+// dailySeed(game, date) to regenerate that day's puzzle.
+function pad2(n){return String(n).padStart(2,"0");}
+function toDateInputValue(d){return d.getFullYear()+"-"+pad2(d.getMonth()+1)+"-"+pad2(d.getDate());}
+
+let archiveov;
+export function openArchive(onPick){
+  const input=document.getElementById("ar-date");
+  const yesterday=new Date();
+  yesterday.setDate(yesterday.getDate()-1);
+  const maxVal=toDateInputValue(yesterday);
+  input.max=maxVal;
+  input.value=maxVal;
+  archiveov.classList.add("show");
+  document.getElementById("ar-go").onclick=()=>{
+    const val=input.value;
+    if(!val)return;
+    const[y,m,d]=val.split("-").map(Number);
+    archiveov.classList.remove("show");
+    onPick(new Date(y,m-1,d));
+  };
+}
+
+let premiumov;
+
+// D1: post-checkout feedback — opens the premium overlay with a result
+// message (main.js calls this after the ?session_id= auto-claim resolves).
+export function showPremiumResult(ok,message){
+  const msg=document.getElementById("pm-msg");
+  msg.textContent=message;msg.className=ok?"ok":"err";
+  refreshPremiumStatus();
+  premiumov.classList.add("show");
+}
 
 export function initUI(){
   overlay=document.getElementById("overlay");modal=document.getElementById("modal");
   helpov=document.getElementById("helpov");
+  premiumov=document.getElementById("premiumov");
+  archiveov=document.getElementById("archiveov");
+  document.getElementById("ar-close").onclick=()=>archiveov.classList.remove("show");
+  archiveov.onclick=(e)=>{if(e.target===archiveov)archiveov.classList.remove("show");};
   document.getElementById("m-close").onclick=()=>overlay.classList.remove("show");
   overlay.onclick=(e)=>{if(e.target===overlay)overlay.classList.remove("show");};
   document.getElementById("m-copy").onclick=async()=>{
@@ -97,4 +177,42 @@ export function initUI(){
   document.getElementById("m-again").onclick=()=>{overlay.classList.remove("show");modalCtx&&modalCtx.onAgain();};
   document.getElementById("h-close").onclick=()=>helpov.classList.remove("show");
   helpov.onclick=(e)=>{if(e.target===helpov)helpov.classList.remove("show");};
+
+  document.getElementById("h-premium-open").onclick=()=>{
+    document.getElementById("pm-msg").textContent="";
+    document.getElementById("pm-msg").className="";
+    premiumov.classList.add("show");
+  };
+  // Purchase buttons: same-tab navigation to Stripe's hosted checkout; its
+  // Payment Link redirects back here with ?session_id= for the auto-claim.
+  document.querySelectorAll("#pm-buy button").forEach(b=>{
+    b.onclick=()=>{location.href=PAYMENT_LINKS[b.dataset.tier];};
+  });
+  document.getElementById("pm-close").onclick=()=>premiumov.classList.remove("show");
+  document.getElementById("pm-mycode-copy").onclick=async()=>{
+    const b=document.getElementById("pm-mycode-copy");
+    try{
+      await navigator.clipboard.writeText(document.getElementById("pm-mycode-val").textContent);
+      b.textContent="Copied ✓";
+    }catch(e){b.textContent="Select & copy above";}
+    setTimeout(()=>{b.textContent="Copy code";},1600);
+  };
+  premiumov.onclick=(e)=>{if(e.target===premiumov)premiumov.classList.remove("show");};
+  document.getElementById("pm-redeem").onclick=async()=>{
+    const input=document.getElementById("pm-code");
+    const msg=document.getElementById("pm-msg");
+    const btn=document.getElementById("pm-redeem");
+    btn.disabled=true;msg.textContent="Checking…";msg.className="";
+    const r=await redeemCode(input.value);
+    btn.disabled=false;
+    if(r.ok){
+      msg.textContent="Unlocked ✓";msg.className="ok";
+      input.value="";
+      refreshPremiumStatus();
+      setTimeout(()=>premiumov.classList.remove("show"),1200);
+    } else {
+      msg.textContent=r.error;msg.className="err";
+    }
+  };
+  refreshPremiumStatus();
 }

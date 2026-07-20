@@ -3,8 +3,9 @@
 // found/hints counts — v13 hardcoded 0, so 🔀 Shuffle reset the visible stats.
 // gen()/counts()/canForm() are exported for logic tests; initLexi() wires the DOM.
 import { mulberry32, dailySeed } from "../core/rng.js";
-import { showResult, showHelp, showSlimBar } from "../core/ui.js";
-import { getGameState, setGameState, addHistory, localDateKey } from "../core/storage.js";
+import { showResult, showHelp, showSlimBar, openArchive } from "../core/ui.js";
+import { getGameState, setGameState, addHistory, localDateKey, isPremium, getBestTime, setBestTime } from "../core/storage.js";
+import { createStopwatch, formatMs } from "../core/timer.js";
 import { SITE_URL } from "../core/share.js";
 import { W6, ALL } from "./words.js";
 
@@ -14,6 +15,9 @@ export function canForm(word,base){const b=Object.assign({},base);for(const ch o
 let pane;
 let puz,found,hinted,hints,status,isDaily,seq,dragging=false,moved=false,seedCur,dateCur;
 let letterEls,elPrev,wheelEl,centers;
+let timed=false; // D1: Timed mode (premium)
+let archiveDate=null; // D1: Archive (premium)
+const stopwatch=createStopwatch();
 
 export function gen(sd){
   const rng=mulberry32(sd);
@@ -33,10 +37,29 @@ export function gen(sd){
   return null;
 }
 function load(sd,daily){
-  isDaily=daily;seedCur=sd;dateCur=localDateKey();puz=gen(sd);
+  isDaily=daily;timed=false;archiveDate=null;seedCur=sd;dateCur=localDateKey();puz=gen(sd);
   if(!puz)puz=gen((sd+99991)>>>0);
   found=new Set();hinted=new Set();hints=0;status="play";seq=[];
   build();persist();
+}
+// D1: Timed mode (premium) — ephemeral like practice, never touches
+// history/streaks (finish() only records when isDaily, which stays false).
+function startTimed(){
+  isDaily=false;timed=true;archiveDate=null;seedCur=Math.floor(Math.random()*1e9);dateCur=localDateKey();
+  puz=gen(seedCur);
+  if(!puz)puz=gen((seedCur+99991)>>>0);
+  found=new Set();hinted=new Set();hints=0;status="play";seq=[];
+  build();
+  stopwatch.start(ms=>{const el=document.getElementById("lx-timer");if(el)el.textContent=formatMs(ms);});
+}
+// D1: Archive (premium) — replays any past date's puzzle via the
+// generalized dailySeed(game, date); ephemeral like practice.
+function startArchive(date){
+  isDaily=false;timed=false;archiveDate=date;seedCur=dailySeed("lexi",date);dateCur=localDateKey();
+  puz=gen(seedCur);
+  if(!puz)puz=gen((seedCur+99991)>>>0);
+  found=new Set();hinted=new Set();hints=0;status="play";seq=[];
+  build();
 }
 // B2 persistence: daily games snapshot on every mutation (incl. wheel order);
 // practice is ephemeral.
@@ -50,7 +73,7 @@ function openDaily(){
   const sd=dailySeed("lexi");
   const s=getGameState("lexi");
   if(s&&s.date===localDateKey()&&s.seed===sd){
-    isDaily=true;seedCur=s.seed;dateCur=s.date;puz=gen(s.seed);
+    isDaily=true;timed=false;archiveDate=null;seedCur=s.seed;dateCur=s.date;puz=gen(s.seed);
     if(!puz)puz=gen((s.seed+99991)>>>0);
     puz.letters=s.letters;
     found=new Set(s.found);hinted=new Set(s.hinted);hints=s.hints;status=s.status;seq=[];
@@ -68,12 +91,15 @@ function slotsHTML(){
   }).join("");
 }
 function build(){
+  const timerStat=timed?`<div class="stat"><div class="lb">TIME</div><div class="vl" id="lx-timer" style="color:var(--marker)">${formatMs(stopwatch.elapsed())}</div></div>`:"";
+  const dateStat=archiveDate?`<div class="stat"><div class="lb">DATE</div><div class="vl">${archiveDate.getMonth()+1}/${archiveDate.getDate()}</div></div>`:"";
   pane.innerHTML=`
     <div class="stats">
       <button class="helpbtn" id="lx-help">?</button>
       <div class="stat big"><div class="lb">FOUND</div><div class="vl" style="color:var(--win)" id="lx-found">${found.size}/${puz.targets.length}</div></div>
       <div class="stat"><div class="lb">HINTS</div><div class="vl" id="lx-hints">${hints}</div></div>
-      <div class="stat"><div class="lb">MODE</div><div class="vl" style="color:var(--faded)">${isDaily?"DAILY":"PRAC"}</div></div>
+      ${timerStat}${dateStat}
+      <div class="stat"><div class="lb">MODE</div><div class="vl" style="color:var(--faded)">${timed?"TIMED":archiveDate?"ARCHIVE":isDaily?"DAILY":"PRAC"}</div></div>
     </div>
     <div class="board" style="padding:8px 6px">
       <div class="lx-slots" id="lx-slots">${slotsHTML()}</div>
@@ -99,6 +125,7 @@ function build(){
     <div class="btnrow">
       <button class="btn" id="lx-new">New puzzle</button>
       <button class="btn pri" id="lx-today">Today's</button>
+      ${isPremium()?'<button class="btn" id="lx-timed">⏱ Timed</button><button class="btn" id="lx-archive">📅 Archive</button>':""}
     </div>
     <div class="slimhost"></div>`;
   wheelEl=pane.querySelector("#lx-wheelwrap");
@@ -115,6 +142,8 @@ function build(){
   pane.querySelector("#lx-hint").onclick=hint;
   pane.querySelector("#lx-new").onclick=()=>load(Math.floor(Math.random()*1e9),false);
   pane.querySelector("#lx-today").onclick=()=>openDaily();
+  const timedBtn=pane.querySelector("#lx-timed");if(timedBtn)timedBtn.onclick=()=>startTimed();
+  const archiveBtn=pane.querySelector("#lx-archive");if(archiveBtn)archiveBtn.onclick=()=>openArchive(d=>startArchive(d));
   wheelEl.addEventListener("touchmove",e=>e.preventDefault(),{passive:false});
   wheelEl.addEventListener("touchstart",e=>{if(e.touches.length===1)e.preventDefault();},{passive:false});
   wheelEl.addEventListener("pointerdown",onDown);
@@ -208,12 +237,25 @@ function refresh(){
 function checkWin(){
   if(found.size===puz.targets.length){
     status="win";
+    if(timed)stopwatch.stop();
     persist();
     finish();
   }
 }
 function result(){
   const label=hints===0?"Wordsmith! 🏆":hints<=2?"Sharp!":"Solved!";
+  if(timed){
+    const elapsed=stopwatch.elapsed();
+    const best=getBestTime("lexi");
+    const isNewBest=best===null||elapsed<best;
+    if(isNewBest)setBestTime("lexi",elapsed);
+    const t=formatMs(elapsed);
+    const share="DAYBATCH · LEXI ⏱ Timed\n"+t+(isNewBest?" — new best! 🏆":"")+"\n"+SITE_URL;
+    return{win:true,title:label,
+      line:t+(isNewBest?" — new best!":" · best "+formatMs(best)),share,
+      onAgain:()=>startTimed(),
+      slimHost:pane.querySelector(".slimhost")};
+  }
   const share="DAYBATCH · LEXI 🔤 "+label+"\n"+puz.targets.length+" words · "+hints+" hint"+(hints===1?"":"s")+"\n"+SITE_URL; // B3 link footer
   return{win:true,title:label,
     line:puz.targets.length+" words · "+hints+" hint"+(hints===1?"":"s"),share,

@@ -110,6 +110,79 @@ export function setInstallHintShown() {
   saveRoot();
 }
 
+// ---- D1: premium entitlement ----
+// Optional additive field on the schema-1 root; absent/null means free tier.
+// No schema bump or migration needed (A2). Shape: {code, tier, verifiedAt,
+// expiresAt} — tier is "monthly" | "yearly" | "lifetime"; expiresAt is null
+// for lifetime, else the next required re-verification timestamp (ms).
+
+export function getEntitlement() {
+  const e = loadRoot().premium;
+  return e === undefined ? null : e;
+}
+
+export function setEntitlement(entitlement) {
+  loadRoot().premium = entitlement;
+  saveRoot();
+}
+
+export function clearEntitlement() {
+  delete loadRoot().premium;
+  saveRoot();
+}
+
+export function isPremium() {
+  const e = getEntitlement();
+  if (!e) return false;
+  if (e.tier === "lifetime") return true;
+  return typeof e.expiresAt === "number" && Date.now() < e.expiresAt;
+}
+
+// Stable random device id, minted once per install (additive root field).
+// Sent with every redeem so the Worker's activation cap counts devices, not
+// calls — see worker/daybatch-worker.js applyActivation().
+export function getDeviceId() {
+  const root = loadRoot();
+  if (!root.deviceId) {
+    root.deviceId = (crypto.randomUUID && crypto.randomUUID()) ||
+      Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 10);
+    saveRoot();
+  }
+  return root.deviceId;
+}
+
+// ---- D1: Endless Crossing best run (premium) ----
+// Optional additive field on the schema-1 root; absent means no run yet.
+// Ephemeral gameplay (never touches history/streaks) — only the best score
+// persists.
+
+export function getCrossingEndlessBest() {
+  const b = loadRoot().crossingEndlessBest;
+  return typeof b === "number" ? b : 0;
+}
+
+export function setCrossingEndlessBest(n) {
+  loadRoot().crossingEndlessBest = n;
+  saveRoot();
+}
+
+// ---- D1: Timed mode best times (premium) ----
+// Optional additive field on the schema-1 root; absent/no entry means no
+// timed run yet for that game. Ephemeral gameplay (never touches
+// history/streaks) — only the best time persists.
+
+export function getBestTime(game) {
+  const t = loadRoot().bestTimes;
+  return t && typeof t[game] === "number" ? t[game] : null;
+}
+
+export function setBestTime(game, ms) {
+  const root = loadRoot();
+  if (!root.bestTimes) root.bestTimes = {};
+  root.bestTimes[game] = ms;
+  saveRoot();
+}
+
 // ---- rollover bookkeeping ----
 
 export function getLastSeenDate() { return loadRoot().lastSeenDate; }
