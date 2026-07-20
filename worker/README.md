@@ -114,15 +114,27 @@ re-redeem) once there's a real subscription to test it against.
 A code works on 2 devices (distinct device ids, tracked in KV). There is no
 self-service deactivation — by design (A9: simple beats airtight). When a
 legitimate customer runs out of slots (new phone + old phone + cleared
-browser data, etc.), reset their code's activation list:
+browser data, etc.):
 
 ```
 cd worker
-npx wrangler kv key delete --binding CODES "redeem:<their full code>"
+node reset-code.mjs "<their full code>"
 ```
 
 Their next redeem starts a fresh device count. The code itself never changes
 and never expires — signature verification needs no KV entry.
+
+**One free reset per code, enforced by the script.** A reset wipes the
+device list to empty — unrestricted resets would let one purchase support
+unlimited people via periodic "I lost my phone" requests, which is a
+materially bigger leak than the 2-device cap was ever meant to allow. The
+script tracks a reset count in KV and refuses a second reset for the same
+code unless you pass `--force` after satisfying yourself it's genuine (e.g.
+ask what happened to the previous two devices):
+
+```
+node reset-code.mjs "<code>" --force
+```
 
 ## Testing
 

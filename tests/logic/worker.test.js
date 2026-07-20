@@ -4,7 +4,7 @@
 // are exercised manually once Darren deploys (see worker/README.md).
 import test from "node:test";
 import assert from "node:assert/strict";
-import { hmacHex, timingSafeEqual, makeCode, verifyCode, tierForStripeId, resolveOrigin, applyActivation, REDEMPTION_CAP, OFFLINE_GRACE_MS } from "../../worker/daybatch-worker.js";
+import { hmacHex, timingSafeEqual, makeCode, verifyCode, tierForStripeId, resolveOrigin, applyActivation, shouldAllowReset, REDEMPTION_CAP, OFFLINE_GRACE_MS, FREE_RESET_CAP } from "../../worker/daybatch-worker.js";
 
 test("hmacHex is deterministic and depends on both secret and message", async () => {
   const a = await hmacHex("secret1", "message");
@@ -82,6 +82,26 @@ test("applyActivation: cap counts distinct devices; a known device re-verifying 
   // junk KV data degrades to an empty list rather than throwing
   assert.deepEqual(applyActivation("{not json", "dev-A", 2), { allowed: true, changed: true, devices: ["dev-A"] });
   assert.deepEqual(applyActivation('"a string"', "dev-A", 2), { allowed: true, changed: true, devices: ["dev-A"] });
+});
+
+test("shouldAllowReset: one free reset per code, further resets need --force", () => {
+  assert.equal(FREE_RESET_CAP, 1);
+
+  // never reset before: allowed without force
+  assert.deepEqual(shouldAllowReset(0, false), { allowed: true });
+
+  // at the cap: refused, with a reason explaining why and how to override
+  const refused = shouldAllowReset(1, false);
+  assert.equal(refused.allowed, false);
+  assert.match(refused.reason, /already been reset 1 time/i);
+  assert.match(refused.reason, /--force/);
+
+  // force always wins, regardless of prior count
+  assert.deepEqual(shouldAllowReset(1, true), { allowed: true });
+  assert.deepEqual(shouldAllowReset(5, true), { allowed: true });
+
+  // well past the cap without force: still refused
+  assert.equal(shouldAllowReset(4, false).allowed, false);
 });
 
 test("contract constants match the PLAN.md A9 design", () => {

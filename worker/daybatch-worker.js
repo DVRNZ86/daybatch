@@ -96,6 +96,29 @@ export function applyActivation(rawList, device, cap) {
   return { allowed: true, changed: true, devices: [...devices, device] };
 }
 
+// Support-reset policy (not exposed over HTTP — used by worker/reset-code.mjs,
+// the manual playbook for "I lost a device, my code is maxed out"). A reset
+// wipes a code's device list back to empty, so unrestricted resets would let
+// one purchase support unlimited friends via periodic "I lost my phone"
+// requests to support — a materially bigger leak than the 2-device cap
+// itself was ever meant to allow (PLAN.md A9's "not airtight" trade-off
+// assumed a one-time leak, not a renewable one). One free reset per code is
+// allowed on request; anything past that needs a deliberate --force,
+// because a second request for the same code is the sharing pattern the cap
+// exists to deter, not routine device churn.
+export const FREE_RESET_CAP = 1;
+
+export function shouldAllowReset(resetCount, force, cap = FREE_RESET_CAP) {
+  if (force) return { allowed: true };
+  if (resetCount < cap) return { allowed: true };
+  return {
+    allowed: false,
+    reason: `This code has already been reset ${resetCount} time(s) (${cap} free reset${cap === 1 ? "" : "s"} already used). ` +
+      `A repeat request for the same code is the sharing pattern the device cap exists to deter — confirm this is genuine before overriding. ` +
+      `Pass --force to proceed anyway.`
+  };
+}
+
 // ALLOWED_ORIGIN may be a comma-separated list (e.g. production + localhost
 // for pre-merge testing). CORS allows exactly one origin per response, so:
 // echo the request's own origin when it's on the list, else fall back to the
