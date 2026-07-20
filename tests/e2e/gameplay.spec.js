@@ -144,6 +144,37 @@ test("Tally: pointer drag draws a path and updates RUNNING; touch tap extends it
   expect(errors).toEqual([]);
 });
 
+test("Tally: a fast double-tap on the board is suppressed (iOS double-tap-zoom guard)", async ({ page }) => {
+  // touch-action:none on #ty-board doesn't reliably stop iOS Safari's
+  // double-tap-zoom gesture — this locks in the explicit suppression
+  // (src/games/tally.js) that fixed a real bug: once zoomed, every
+  // subsequent tap both panned the page and still registered as a move.
+  await openTab(page, "tally");
+  const board = page.locator("#ty-board");
+  await board.scrollIntoViewIfNeeded();
+
+  const [first, second] = await board.evaluate((el) => {
+    const fire = () => {
+      const ev = new Event("touchend", { bubbles: true, cancelable: true });
+      el.dispatchEvent(ev);
+      return ev.defaultPrevented;
+    };
+    const a = fire();
+    const b = fire(); // within the same tick: well under the 300ms window
+    return [a, b];
+  });
+  expect(first).toBe(false); // a lone tap must not be suppressed
+  expect(second).toBe(true); // the rapid second tap is the zoom gesture — blocked
+
+  // gesturestart (Safari's pinch-zoom event) is prevented too
+  const gestureBlocked = await board.evaluate((el) => {
+    const ev = new Event("gesturestart", { bubbles: true, cancelable: true });
+    el.dispatchEvent(ev);
+    return ev.defaultPrevented;
+  });
+  expect(gestureBlocked).toBe(true);
+});
+
 // ----------------------------------------------------------------- LEXI ----
 
 test("Lexi: pointer drag across letters previews the word, draws the line, and release submits", async ({ page }) => {

@@ -167,6 +167,19 @@ function buildDOM(){
   const timedBtn=pane.querySelector("#ty-timed");if(timedBtn)timedBtn.onclick=()=>startTimed();
   const archiveBtn=pane.querySelector("#ty-archive");if(archiveBtn)archiveBtn.onclick=()=>openArchive(d=>startArchive(d));
   boardEl.addEventListener("touchmove",e=>e.preventDefault(),{passive:false});
+  // touch-action:none on #ty-board (needed for the custom drag gesture)
+  // doesn't reliably stop double-tap/pinch zoom on iOS Safari — a known
+  // WebKit quirk where the accessibility zoom gesture ignores it. Once
+  // zoomed, every later tap both pans the page AND still lands as a move,
+  // making the board unplayable. Suppress both gestures explicitly, scoped
+  // to the board so nothing elsewhere in the app is affected.
+  let lastTouchEndTs=0;
+  boardEl.addEventListener("touchend",e=>{
+    const now=Date.now();
+    if(now-lastTouchEndTs<=300)e.preventDefault();
+    lastTouchEndTs=now;
+  },{passive:false});
+  boardEl.addEventListener("gesturestart",e=>e.preventDefault());
   boardEl.addEventListener("pointerdown",onDown);
   boardEl.addEventListener("pointermove",onMove);
   boardEl.addEventListener("pointerup",onUp);
