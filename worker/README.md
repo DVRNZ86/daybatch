@@ -86,14 +86,13 @@ Three endpoints, no database beyond one KV namespace for redemption counts:
    ```
    Note the resulting `*.workers.dev` URL (or map a custom subdomain).
 
-7. **Point the app at it**: set `VERIFY_ENDPOINT` in
-   `src/core/entitlement.js` to `<worker url>/redeem` (currently `null` —
-   deliberately, so redemption fails with a clear "not live yet" message
-   until this step happens). The `/claim` flow (auto-detecting
-   `?session_id=` on load and redeeming automatically) is not wired into
-   `main.js` yet — that's a small follow-up once the Worker is live and
-   `VERIFY_ENDPOINT` is set, so it can be tested against the real endpoint
-   rather than guessed at blind.
+7. **Point the app at it**: done — `VERIFY_ENDPOINT`/`CLAIM_ENDPOINT` in
+   `src/core/entitlement.js` point at
+   `https://daybatch-entitlement.daybatch.workers.dev`. The `/claim` flow
+   (`main.js` auto-detects `?session_id=` on load, claims, redeems, scrubs
+   the URL) is wired and live-tested against real Stripe test-mode
+   purchases (lifetime + a cancelled subscription). At launch, swap this
+   for the live-mode Worker URL if it differs (same Worker, live secrets).
 
 8. **Register the Stripe webhook** (dashboard → Developers → Webhooks):
    endpoint URL `<worker url>/webhook`, whichever events you want to observe
