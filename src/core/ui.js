@@ -8,6 +8,33 @@ import { redeemCode, PAYMENT_LINKS, PORTAL_URL } from "./entitlement.js";
 
 export function el(html){const t=document.createElement("template");t.innerHTML=html.trim();return t.content.firstChild;}
 
+// Double-tap/pinch zoom can still trigger on iOS Safari even where
+// touch-action:none is set (a known WebKit quirk on custom drag-gesture
+// elements — it ignores both the viewport meta's user-scalable=no and, for
+// this specific gesture, touch-action:none itself) — once zoomed, every
+// later tap both pans the page AND still lands as a game move.
+//
+// Scope this to the specific touch-action:none drag surface (Tally's
+// #ty-board, Lexi's #lx-wheelwrap), NOT a whole pane or any element whose
+// children rely on synthesized click events (onclick=...): calling
+// preventDefault() on a touchend also suppresses the click the browser
+// would otherwise synthesize from that same touch, so scoping this too
+// broadly silently eats button taps that land within 300ms of a prior tap
+// (found via a real regression: Lexi's ✓ Check button stopped responding
+// after a quick letter-tap). The other games' tap targets already declare
+// touch-action:manipulation, which is the standard, narrower fix for
+// double-tap-zoom and doesn't carry this risk — they don't need this.
+
+export function suppressZoomGestures(elem){
+  let lastTouchEndTs=0;
+  elem.addEventListener("touchend",e=>{
+    const now=Date.now();
+    if(now-lastTouchEndTs<=300)e.preventDefault();
+    lastTouchEndTs=now;
+  },{passive:false});
+  elem.addEventListener("gesturestart",e=>e.preventDefault());
+}
+
 // B3 Batch Report card (below the active pane) + header 🔥 streak chip.
 // Renders from history alone, so it survives reloads and ignores practice.
 export function refreshReport(){
