@@ -6,7 +6,7 @@ import { getGameState, setGameState, addHistory, localDateKey, isPremium, getBes
 import { createStopwatch, formatMs } from "../core/timer.js";
 import { SITE_URL } from "../core/share.js";
 
-const SN=7,SHIPS=[3,2,2];
+const SN=7,SHIPS=[3,2,2],MAX_HINTS=2;
 let pane;
 let puz,revealed,status,isDaily;
 let timed=false; // D1: Timed mode (premium)
@@ -110,8 +110,10 @@ function tap(i){
 }
 // D1: Sonar hint (premium) — reveals a guaranteed-hit cell via the normal
 // tap() path; tierFor() charges it double and forfeits tier 1 (see above).
+// Capped at MAX_HINTS per game (Darren's clarification: a hard use limit,
+// not just a scoring penalty) — the button disables once exhausted.
 function hint(){
-  if(status!=="play")return;
+  if(status!=="play"||hintsUsed>=MAX_HINTS)return;
   const cell=[...puz.occ].find(i=>!revealed.has(i));
   if(cell===undefined)return;
   hintsUsed++;
@@ -180,7 +182,7 @@ function render(){
     <div class="btnrow">
       <button class="btn${isDaily?"":" pri"}" id="sn-new">New puzzle</button>
       <button class="btn${isDaily?" pri":""}" id="sn-today">Today's</button>
-      ${isPremium()?'<button class="btn" id="sn-timed">⏱ Timed</button><button class="btn" id="sn-hint">💡 Hint</button><button class="btn" id="sn-archive">📅 Archive</button>':""}
+      ${isPremium()?'<button class="btn" id="sn-timed">⏱ Timed</button><button class="btn" id="sn-hint"'+(hintsUsed>=MAX_HINTS?" disabled":"")+'>💡 Hint'+(hintsUsed>0?" ("+(MAX_HINTS-hintsUsed)+" left)":"")+'</button><button class="btn" id="sn-archive">📅 Archive</button>':""}
     </div>
     <div class="slimhost"></div>`;
   pane.querySelectorAll(".sn-row button").forEach(b=>b.onclick=()=>tap(+b.dataset.i));

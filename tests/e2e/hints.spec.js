@@ -36,13 +36,37 @@ test("Sonar hint reveals a guaranteed hit and counts as a normal ping", async ({
   await expect(page.locator(".sn-row button.hit")).toHaveCount(1);
 });
 
-test("Sonar hint can finish the game (all 7 hints) with a normal win modal", async ({ page }) => {
-  test.setTimeout(30000);
+test("Sonar hint: capped at 2 uses per game — the button disables and further clicks do nothing", async ({ page }) => {
+  // Darren's clarification: hints are a hard-limited assist (max 2 per
+  // game), not just a scoring penalty — the button must stop working once
+  // exhausted rather than silently letting the whole ship be hinted.
   await seedPremium(page);
   await page.goto("/");
   await page.locator('.tabs button[data-tab="sonar"]').click();
 
-  for (let i = 0; i < 7; i++) await page.locator("#sn-hint").click();
+  await page.locator("#sn-hint").click();
+  await expect(page.locator("#sn-hint")).toHaveText("💡 Hint (1 left)");
+  await expect(page.locator("#sn-hint")).toBeEnabled();
+
+  await page.locator("#sn-hint").click();
+  await expect(page.locator("#sn-hint")).toHaveText("💡 Hint (0 left)");
+  await expect(page.locator("#sn-hint")).toBeDisabled();
+  await expect(page.locator("#pane-sonar .stat.big").filter({ hasText: "FOUND" }).locator(".vl")).toHaveText("2/7");
+
+  // a third click (even forced past the disabled attribute) must be a no-op
+  await page.locator("#sn-hint").dispatchEvent("click");
+  await expect(page.locator("#pane-sonar .stat.big").filter({ hasText: "FOUND" }).locator(".vl")).toHaveText("2/7");
+});
+
+test("Sonar hint: finishing the daily after 2 hints + 5 manual hits still wins normally", async ({ page }) => {
+  await seedPremium(page);
+  await page.goto("/");
+  await page.locator('.tabs button[data-tab="sonar"]').click();
+
+  const ships = [...genSonar(dailySeed("sonar")).occ];
+  await page.locator("#sn-hint").click();
+  await page.locator("#sn-hint").click(); // 2 hints: reveals ships[0], ships[1]
+  for (const i of ships.slice(2)) await page.locator(`.sn-row button[data-i="${i}"]`).click();
   await expect(page.locator("#overlay.show")).toBeVisible();
   await expect(page.locator("#pane-sonar .stat.big").filter({ hasText: "FOUND" }).locator(".vl")).toHaveText("7/7");
 });
