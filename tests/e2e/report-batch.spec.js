@@ -213,7 +213,7 @@ test("practice completion never touches the report, header streak, or history", 
   await expect(page.locator("#report .rp-lines")).toContainText("🧭 Crossing — not played");
   await expect(page.locator("#hdr-streak")).toHaveText("🔥1");
   expect(await readHistory(page)).toEqual([
-    { date: DATE_KEY, game: "sonar", tier: 1, metrics: { pings: 7, win: true } }
+    { date: DATE_KEY, game: "sonar", tier: 1, metrics: { pings: 7, hintsUsed: 0, win: true } }
   ]);
   expect(errors).toEqual([]);
 });

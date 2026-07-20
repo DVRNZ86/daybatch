@@ -77,10 +77,29 @@ test("fleet invariants hold across many seeds", () => {
   }
 });
 
-test("tierFor maps pings to the PLAN.md B2 contract", async () => {
+test("tierFor maps pings to the PLAN.md B2 contract (no hints)", async () => {
   const { tierFor } = await import("../../src/games/sonar.js");
   assert.equal(tierFor(7), 1);
   assert.equal(tierFor(9), 2);
   assert.equal(tierFor(12), 3);
   assert.equal(tierFor(13), 4);
+  // default hintsUsed=0 behaves identically to the pre-D1-patch signature
+  assert.equal(tierFor(7, 0), 1);
+});
+
+test("tierFor: D1 hint penalty — each hint costs 2 pings' worth and forfeits tier 1", async () => {
+  const { tierFor } = await import("../../src/games/sonar.js");
+  // a "perfect" 7-ping game achieved via a single hint: effective pings
+  // 7+1=8 -> tier 2 on the ping math alone
+  assert.equal(tierFor(7, 1), 2);
+  // Darren's exact repro: 7 pings, all 7 via hint -> effective 14 -> tier 4,
+  // and the forfeit-tier-1 rule would floor it at 2 even if the math didn't
+  assert.equal(tierFor(7, 7), 4);
+  // any hint at all forfeits tier 1, even a single hint on an otherwise
+  // flawless run
+  assert.equal(tierFor(7, 1) > 1, true);
+  // hint use never IMPROVES a tier that was already going to be worse than 2
+  assert.equal(tierFor(20, 3), 4);
+  // zero hints is untouched regardless of the second argument's absence
+  assert.equal(tierFor(9), tierFor(9, 0));
 });

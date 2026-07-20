@@ -54,7 +54,7 @@ test("finishing yesterday's game after NZ midnight records under yesterday's dat
 
   // recorded under the puzzle's issue date (the 10th), not the new day
   expect(await history(page)).toEqual([
-    { date: "2026-7-10", game: "sonar", tier: 1, metrics: { pings: 7, win: true } }
+    { date: "2026-7-10", game: "sonar", tier: 1, metrics: { pings: 7, hintsUsed: 0, win: true } }
   ]);
 
   // start today's batch: fresh daily for the 11th, finish it perfectly too
@@ -68,8 +68,8 @@ test("finishing yesterday's game after NZ midnight records under yesterday's dat
 
   // both days stand in history as separate records
   expect(await history(page)).toEqual([
-    { date: "2026-7-10", game: "sonar", tier: 1, metrics: { pings: 7, win: true } },
-    { date: "2026-7-11", game: "sonar", tier: 1, metrics: { pings: 7, win: true } }
+    { date: "2026-7-10", game: "sonar", tier: 1, metrics: { pings: 7, hintsUsed: 0, win: true } },
+    { date: "2026-7-11", game: "sonar", tier: 1, metrics: { pings: 7, hintsUsed: 0, win: true } }
   ]);
   expect(errors).toEqual([]);
 });

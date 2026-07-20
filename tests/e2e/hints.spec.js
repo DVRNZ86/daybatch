@@ -1,6 +1,6 @@
 // D1: premium hints on Sonar and Codebreak.
 import { test, expect } from "@playwright/test";
-import { gen as genSonar } from "../../src/games/sonar.js";
+import { gen as genSonar, tierFor as snTierFor } from "../../src/games/sonar.js";
 import { gen as genCodebreak, tierFor as cbTierFor } from "../../src/games/codebreak.js";
 import { dailySeed } from "../../src/core/rng.js";
 
@@ -45,6 +45,27 @@ test("Sonar hint can finish the game (all 7 hints) with a normal win modal", asy
   for (let i = 0; i < 7; i++) await page.locator("#sn-hint").click();
   await expect(page.locator("#overlay.show")).toBeVisible();
   await expect(page.locator("#pane-sonar .stat.big").filter({ hasText: "FOUND" }).locator(".vl")).toHaveText("7/7");
+});
+
+test("Sonar hint: D1 patch — 1 hint + a flawless finish still degrades the recorded tier", async ({ page }) => {
+  // Before the patch, a hint cost exactly 1 ping like a real tap, so a
+  // player who otherwise played perfectly could farm tier 1 for free.
+  // hintsUsed now doubles that cost and forfeits tier 1 outright.
+  await seedPremium(page);
+  await page.goto("/");
+  await page.locator('.tabs button[data-tab="sonar"]').click();
+
+  const ships = [...genSonar(dailySeed("sonar")).occ];
+  await page.locator("#sn-hint").click(); // 1 hint: reveals ships[0]
+  for (const i of ships.slice(1)) await page.locator(`.sn-row button[data-i="${i}"]`).click();
+  await expect(page.locator("#overlay.show")).toBeVisible();
+
+  const h = await page.evaluate(() => JSON.parse(localStorage.getItem("daybatch:v1")).history);
+  const record = h.find(r => r.game === "sonar");
+  expect(record.metrics).toEqual({ pings: 7, hintsUsed: 1, win: true });
+  expect(snTierFor(7)).toBe(1); // 7 pings alone would be a perfect tier 1
+  expect(record.tier).toBe(snTierFor(7, 1));
+  expect(record.tier).toBe(2); // one hint is enough to forfeit it
 });
 
 test("Codebreak hint reveals a slot without touching the in-progress guess, and penalizes the recorded tier", async ({ page }) => {

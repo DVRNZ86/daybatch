@@ -157,7 +157,7 @@ test("Sonar: mid-game pings survive a reload; perfect finish restores as bar", a
 
   const h = await readHistory(page);
   expect(h.filter(r => r.game === "sonar")).toEqual([
-    { date: DATE_KEY, game: "sonar", tier: 2, metrics: { pings: 8, win: true } }
+    { date: DATE_KEY, game: "sonar", tier: 2, metrics: { pings: 8, hintsUsed: 0, win: true } }
   ]);
   expect(errors).toEqual([]);
 });
