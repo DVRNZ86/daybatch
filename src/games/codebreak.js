@@ -231,7 +231,7 @@ function render(){
     <div class="btnrow">
       <button class="btn" id="cb-new">New puzzle</button>
       <button class="btn pri" id="cb-today">Today's</button>
-      ${isPremium()?'<button class="btn" id="cb-repeats">🔁 Repeats</button><button class="btn" id="cb-timed">⏱ Timed</button><button class="btn" id="cb-hint">💡 Hint</button><button class="btn" id="cb-archive">📅 Archive</button>':""}
+      ${isPremium()?'<button class="btn" id="cb-repeats">🔁 Repeats (Hard)</button><button class="btn" id="cb-timed">⏱ Timed</button><button class="btn" id="cb-hint">💡 Hint</button><button class="btn" id="cb-archive">📅 Archive</button>':""}
     </div>
     <div class="slimhost"></div>`;
   pane.querySelectorAll(".cb-keys button").forEach(b=>b.onclick=()=>{
