@@ -225,7 +225,6 @@
 #pm-code {
   width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--grid);
   font-family:ui-monospace,monospace; font-size:14px; color:var(--ink); margin-bottom:8px;
-  text-transform:uppercase;
 }
 #pm-buy { margin-bottom:10px; }
 #pm-buy .btn small { font-size:10px; color:var(--faded); font-weight:600; }

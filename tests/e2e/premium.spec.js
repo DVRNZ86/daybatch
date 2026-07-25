@@ -105,11 +105,15 @@ test("redeem overlay: bad code shows the server's rejection; good code unlocks a
   await page.locator("#h-premium-open").click();
   await expect(page.locator("#premiumov.show")).toBeVisible();
 
-  // v0.D1.10: codes are "<stripeId>.<lowercase-hex signature>" — genuinely
+  // v0.D1.10/11: codes are "<stripeId>.<lowercase-hex signature>" — genuinely
   // case-sensitive — so the field must never force the mobile keyboard into
   // shift-lock (autocapitalize="characters" made lowercase chars, which real
-  // codes always contain in their signature half, unreachable on iOS/Android).
+  // codes always contain in their signature half, unreachable on iOS/Android)
+  // NOR visually force-uppercase what's typed via CSS (text-transform only
+  // changes the render, not the submitted value, but made it impossible to
+  // see whether lowercase characters had actually landed).
   await expect(page.locator("#pm-code")).toHaveAttribute("autocapitalize", "off");
+  await expect(page.locator("#pm-code")).toHaveCSS("text-transform", "none");
 
   await page.locator("#pm-code").fill("BADCODE");
   await page.locator("#pm-redeem").click();
