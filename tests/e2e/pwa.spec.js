@@ -23,7 +23,16 @@ async function swReady(page) {
 async function pollUntil(page, predicate, { timeout = 10000, interval = 50 } = {}) {
   const start = Date.now();
   for (;;) {
-    const keys = await page.evaluate(() => caches.keys());
+    let keys;
+    try {
+      keys = await page.evaluate(() => caches.keys());
+    } catch (e) {
+      // A navigation (e.g. v0.D1.9's automatic reload on controllerchange)
+      // can destroy the execution context mid-poll — harmless, just retry.
+      if (Date.now() - start > timeout) throw e;
+      await page.waitForTimeout(interval);
+      continue;
+    }
     if (await predicate(keys)) return keys;
     if (Date.now() - start > timeout) throw new Error("pollUntil timed out; last keys: " + JSON.stringify(keys));
     await page.waitForTimeout(interval);
@@ -67,7 +76,7 @@ test("airplane mode: full offline launch, all five games playable, storage intac
   await context.setOffline(false);
 });
 
-test("new deploy reaches clients within one revisit", async ({ page }) => {
+test("new deploy reaches clients within one revisit, with no manual reload needed", async ({ page }) => {
   await page.goto("/");
   await swReady(page);
   const oldKeys = await page.evaluate(() => caches.keys());
@@ -82,17 +91,31 @@ test("new deploy reaches clients within one revisit", async ({ page }) => {
   try {
     await writeFile(SW_PATH, bumped);
 
+    // main.js's controllerchange listener reloads the page a second time, on
+    // its own, the moment the new worker takes control — track navigations
+    // so we can wait for exactly that, instead of racing it with a manual
+    // page.reload() (v0.D1.9: this is what previously left field devices
+    // stuck on the old shell until site data was cleared by hand).
+    let sawManualReload = false;
+    const autoReloaded = new Promise((resolve) => {
+      page.on("framenavigated", (frame) => {
+        if (frame !== page.mainFrame()) return;
+        if (!sawManualReload) { sawManualReload = true; return; }
+        resolve();
+      });
+    });
+
     // Revisit 1: main.js's load handler calls reg.update() itself (a plain
     // re-registration alone would NOT force this browser to re-fetch and
     // byte-compare sw.js) → sees the bumped script, installs, skipWaiting +
-    // clients.claim() activate it and the old cache is deleted. This one
-    // revisit is the full acceptance criterion.
+    // clients.claim() activate it and the old cache is deleted.
     await page.reload();
     const keys = await pollUntil(page, async (k) => k.includes("daybatch-v9.TEST.9") && k.length === 1);
     expect(keys).not.toContain(oldKeys[0]);
 
-    // The new worker stays in control and the app keeps working on a further visit.
-    await page.reload();
+    // No second manual revisit: the new worker's clients.claim() fires
+    // controllerchange on this open tab, which reloads it automatically.
+    await autoReloaded;
     await expect(page.locator(".logo")).toHaveText("DAYBATCH.");
     expect(await page.evaluate(() => caches.keys())).toEqual(["daybatch-v9.TEST.9"]);
   } finally {

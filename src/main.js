@@ -83,6 +83,27 @@ window.addEventListener("focus",checkRollover);
 // and again on the same visibilitychange/focus triggers as the rollover
 // watcher, matching the "reaches clients within one revisit" acceptance bar.
 if ("serviceWorker" in navigator) {
+  // A new SW can finish installing and (via skipWaiting/clients.claim) take
+  // control of this very page without it ever re-navigating — the open tab
+  // keeps running the JS modules it already loaded, so nothing here actually
+  // picks up the new version until something forces a real reload. Reload
+  // once, right when control changes, so a revisit is never stuck on stale
+  // code (previously only clearing site data — which also wipes entitlement
+  // and game state — reliably fixed this).
+  //
+  // controllerchange also fires the very first time a page is ever
+  // controlled (no SW → this SW) — not just on a genuine version swap. Only
+  // arm the reload if this page already had a controller at boot, i.e. it
+  // was already being served by a SW and something has now replaced it.
+  if (navigator.serviceWorker.controller) {
+    let reloaded = false;
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      if (reloaded) return;
+      reloaded = true;
+      location.reload();
+    });
+  }
+
   window.addEventListener("load", () => {
     navigator.serviceWorker.register("sw.js").then((reg) => {
       // Guard against overlapping checks (e.g. a focus event firing right
