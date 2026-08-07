@@ -274,6 +274,43 @@ test("Tally: mid-game path survives reload; par win restores as bar", async ({ p
   expect(errors).toEqual([]);
 });
 
+// Regression: "Clear path" had no post-win guard, so tapping it after a
+// finished daily reset the live path to [START] and (via updatePath's
+// persist()) silently overwrote the saved snapshot with status "win" but a
+// 1-cell path — next reopen recomputed a bogus, trivially-"best" result on
+// the board while the Batch Report/history (write-once) still showed the
+// real one. Found by Darren on-device 2026-08-08.
+test("Tally: Clear path after a win doesn't corrupt the saved result", async ({ page }) => {
+  const errors = trackErrors(page);
+  await pinDate(page);
+  const { path, puz } = await tallyParPath();
+  expect(path).not.toBeNull();
+
+  await page.goto("/");
+  await openTab(page, "tally");
+  for (const i of path.slice(1)) await page.locator(`#ty-grid .tc[data-i="${i}"]`).click();
+  await expect(page.locator("#overlay.show")).toBeVisible();
+  await page.locator("#m-close").click();
+
+  const onCountBefore = await page.locator("#ty-grid .tc.on").count();
+  expect(onCountBefore).toBe(path.length);
+
+  await page.locator("#ty-clear").click();
+  await expect(page.locator("#ty-grid .tc.on")).toHaveCount(onCountBefore);
+
+  await page.reload();
+  await openTab(page, "tally");
+  await expect(page.locator("#pane-tally .slimbar.win")).toBeVisible();
+  await expect(page.locator("#pane-tally .slimbar span")).toContainText("Perfect");
+  await expect(page.locator("#ty-tries")).toHaveText("1");
+
+  const h = await readHistory(page);
+  expect(h.filter(r => r.game === "tally")).toEqual([
+    { date: DATE_KEY, game: "tally", tier: 1, metrics: { moves: puz.par, par: puz.par, attempts: 1, win: true } }
+  ]);
+  expect(errors).toEqual([]);
+});
+
 // ----------------------------------------------------------------- LEXI ----
 
 test("Lexi: found words, hints and wheel order survive reload; win restores as bar", async ({ page }) => {

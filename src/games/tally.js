@@ -161,7 +161,7 @@ function buildDOM(){
   elTotal=pane.querySelector("#ty-total");
   elTries=pane.querySelector("#ty-tries");
   pane.querySelector("#ty-help").onclick=()=>showHelp(TY_HELP);
-  pane.querySelector("#ty-clear").onclick=()=>{path=[START];updatePath();};
+  pane.querySelector("#ty-clear").onclick=()=>{if(status!=="play")return;path=[START];updatePath();};
   pane.querySelector("#ty-new").onclick=()=>load(Math.floor(Math.random()*1e9),false);
   pane.querySelector("#ty-today").onclick=()=>openDaily();
   const timedBtn=pane.querySelector("#ty-timed");if(timedBtn)timedBtn.onclick=()=>startTimed();
