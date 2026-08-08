@@ -24,6 +24,11 @@
 //     the cap counts DISTINCT devices, not redeem calls — a known device
 //     re-verifying (weekly, for subscriptions) never consumes an activation.
 //
+//   POST /admin/send-code  { email } -> { sent, email, tier }
+//     Support tool (worker/send-code.mjs): emails a customer their code when
+//     they don't have it. Gated by X-Admin-Key, not user-facing. Never
+//     returns the code itself — only confirms it was emailed.
+//
 //   POST /webhook
 //     Verifies Stripe's webhook signature. Not on the critical path (the
 //     flow above is pull-based via session_id) — a landing point for future
@@ -34,6 +39,9 @@
 //   env.STRIPE_SECRET_KEY
 //   env.STRIPE_WEBHOOK_SECRET
 //   env.CODE_SECRET         HMAC signing key for codes (independent of Stripe)
+//   env.ADMIN_KEY            shared secret gating /admin/send-code (operator tool)
+//   env.EMAIL_API_KEY, env.EMAIL_FROM   outbound email provider (not yet
+//                                        chosen — sendEmail() is a stub)
 //   env.PRICE_MONTHLY, env.PRICE_YEARLY   Stripe Price IDs, to tell the two
 //                                          subscription tiers apart
 //   env.ALLOWED_ORIGIN      CORS allowlist; comma-separated, e.g.
@@ -117,6 +125,27 @@ export function shouldAllowReset(resetCount, force, cap = FREE_RESET_CAP) {
       `A repeat request for the same code is the sharing pattern the device cap exists to deter — confirm this is genuine before overriding. ` +
       `Pass --force to proceed anyway.`
   };
+}
+
+// Support tool (D1 patch): find a customer's code when they don't have it —
+// the redirect never claimed it, they closed the tab too early, deleted the
+// confirmation email, whatever. Given every payment_intent + subscription
+// Stripe has on file for them, pick the one their code should be derived
+// from: a succeeded one-time payment (lifetime never expires) wins over a
+// subscription; ties broken by most recent `created`. Pure/testable — the
+// actual Stripe fetch + code derivation happens in handleAdminLookup below.
+export function pickBestStripeId(paymentIntents, subscriptions) {
+  const paid = (paymentIntents || [])
+    .filter(pi => pi.status === "succeeded")
+    .sort((a, b) => b.created - a.created);
+  if (paid.length) return { id: paid[0].id, kind: "lifetime" };
+
+  const live = (subscriptions || [])
+    .filter(s => s.status === "active" || s.status === "trialing")
+    .sort((a, b) => b.created - a.created);
+  if (live.length) return { id: live[0].id, kind: "subscription" };
+
+  return null;
 }
 
 // ALLOWED_ORIGIN may be a comma-separated list (e.g. production + localhost
@@ -209,6 +238,82 @@ async function handleRedeem(req, env, origin) {
   return json({ error: "unrecognised id type" }, 500, origin);
 }
 
+// Outbound email — support tool only, never on the purchase/redeem critical
+// path. Provider TBD (Darren, 8 Aug 2026: "decide later"); this stays a
+// stub — swap the fetch() call in once a provider is chosen, same
+// call-the-REST-API-directly pattern already used for Stripe, no SDK. Needs:
+//   env.EMAIL_API_KEY   provider API key (Worker secret)
+//   env.EMAIL_FROM       verified sender address, e.g. support@daybatch.app
+// Throws (never silently no-ops) so handleAdminSendCode's caller always
+// knows whether the code actually reached an inbox.
+async function sendEmail(env, to, subject, text) {
+  if (!env.EMAIL_API_KEY || !env.EMAIL_FROM) {
+    throw new Error("email sending not configured — set EMAIL_API_KEY/EMAIL_FROM once a provider is picked, see worker/README.md");
+  }
+  // TODO(provider): e.g. for Resend —
+  //   const res = await fetch("https://api.resend.com/emails", {
+  //     method: "POST",
+  //     headers: { Authorization: `Bearer ${env.EMAIL_API_KEY}`, "Content-Type": "application/json" },
+  //     body: JSON.stringify({ from: env.EMAIL_FROM, to, subject, text })
+  //   });
+  //   if (!res.ok) throw new Error("email provider " + res.status);
+  throw new Error("sendEmail() has no provider wired up yet — see the TODO above it in worker/daybatch-worker.js");
+}
+
+// POST /admin/send-code  { email } -> { sent: true, email, tier }
+// Support-only endpoint (worker/send-code.mjs), gated by a shared secret
+// header rather than Stripe/customer auth — an operator tool, not a
+// user-facing one. Searches every Stripe Customer on that email (Stripe
+// doesn't dedupe by email, so a repeat-checkout customer can have more than
+// one), pools their payment_intents + subscriptions, derives the same code
+// /claim would have handed them, and EMAILS it rather than returning it in
+// the response — so a leaked ADMIN_KEY lets someone trigger a send, but
+// never reads the code back out over the API; it only ever reaches the
+// inbox the code's real owner already controls.
+async function handleAdminSendCode(req, env, origin) {
+  const key = req.headers.get("X-Admin-Key") || "";
+  if (!env.ADMIN_KEY || !timingSafeEqual(key, env.ADMIN_KEY)) {
+    return json({ error: "unauthorized" }, 401, origin);
+  }
+  const { email } = await req.json();
+  if (!email) return json({ error: "email required" }, 400, origin);
+
+  let customers;
+  try {
+    customers = await stripeGet(env, `customers?email=${encodeURIComponent(email)}&limit=10`);
+  } catch (e) {
+    return json({ error: "stripe lookup failed" }, 502, origin);
+  }
+  if (!customers.data || !customers.data.length) {
+    return json({ error: "no Stripe customer found for that email" }, 404, origin);
+  }
+
+  const allIntents = [], allSubs = [];
+  for (const cust of customers.data) {
+    try {
+      const [pis, subs] = await Promise.all([
+        stripeGet(env, `payment_intents?customer=${cust.id}&limit=20`),
+        stripeGet(env, `subscriptions?customer=${cust.id}&status=all&limit=20`)
+      ]);
+      allIntents.push(...(pis.data || []));
+      allSubs.push(...(subs.data || []));
+    } catch (e) { /* one customer's lookup failing shouldn't sink the others */ }
+  }
+
+  const best = pickBestStripeId(allIntents, allSubs);
+  if (!best) return json({ error: "no successful payment or active subscription found for that email" }, 404, origin);
+
+  const code = await makeCode(env.CODE_SECRET, best.id);
+  const tier = tierForStripeId(best.id);
+  try {
+    await sendEmail(env, email, "Your Daybatch code",
+      `Here's your Daybatch ${tier} code:\n\n${code}\n\nEnter it in the app under the crown icon → "Have a code?".`);
+  } catch (e) {
+    return json({ error: "code found but email send failed: " + e.message }, 502, origin);
+  }
+  return json({ sent: true, email, tier }, 200, origin);
+}
+
 async function handleWebhook(req, env) {
   const sigHeader = req.headers.get("Stripe-Signature") || "";
   const body = await req.text();
@@ -233,6 +338,7 @@ export default {
     const url = new URL(req.url);
     if (req.method === "POST" && url.pathname === "/claim") return handleClaim(req, env, origin);
     if (req.method === "POST" && url.pathname === "/redeem") return handleRedeem(req, env, origin);
+    if (req.method === "POST" && url.pathname === "/admin/send-code") return handleAdminSendCode(req, env, origin);
     if (req.method === "POST" && url.pathname === "/webhook") return handleWebhook(req, env);
     return json({ error: "not found" }, 404, origin);
   }

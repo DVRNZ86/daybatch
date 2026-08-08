@@ -73,6 +73,11 @@ Three endpoints, no database beyond one KV namespace for redemption counts:
    wrangler secret put STRIPE_SECRET_KEY
    wrangler secret put STRIPE_WEBHOOK_SECRET
    wrangler secret put CODE_SECRET       # any long random string, independent of Stripe
+   wrangler secret put ADMIN_KEY         # any long random string, gates /admin/send-code
+                                         # (send-code.mjs) — keep it in your password
+                                         # manager, never in git
+   # EMAIL_API_KEY / EMAIL_FROM: only needed once a provider is picked for
+   # /admin/send-code — see "Known follow-up" and sendEmail()'s TODO below.
    wrangler secret put PRICE_MONTHLY     # Stripe Price id for the $2/mo Payment Link
    wrangler secret put PRICE_YEARLY      # Stripe Price id for the $20/yr Payment Link
    wrangler secret put ALLOWED_ORIGIN    # comma-separated CORS allowlist:
@@ -108,6 +113,15 @@ periodic trigger exists client-side yet. Add one (e.g. on app focus, check
 if the stored `expiresAt` is within a few days of expiring and silently
 re-redeem) once there's a real subscription to test it against.
 
+`/admin/send-code`'s `sendEmail()` has no provider wired up yet (Darren, 8
+Aug 2026: decided to build the hook now, pick a provider later). Options
+considered: Resend (simplest REST API, generous free tier), Postmark
+(strongest transactional deliverability, no free tier), SendGrid (shared-IP
+reputation risk at low volume). Whichever is picked needs its own account,
+`daybatch.app` domain verification (SPF/DKIM) for deliverability, and its
+API call dropped into the `TODO` in `sendEmail()` — no SDK, same
+call-the-REST-API-via-fetch() pattern as Stripe.
+
 ## Support playbook: "my code says it's used up" / device transfer
 
 A code works on 2 devices (distinct device ids, tracked in KV). There is no
@@ -134,6 +148,44 @@ ask what happened to the previous two devices):
 ```
 node reset-code.mjs "<code>" --force
 ```
+
+## Support playbook: "I paid but I don't have my code"
+
+Happens when the post-checkout redirect never claimed it (tab closed too
+early, browser killed mid-flow, confirmation email deleted). The code is
+fully derivable from the Stripe payment/subscription id at any time — there
+is no time limit and no need to redo the purchase:
+
+```
+cd worker
+ADMIN_KEY="<the admin key from your password manager>" node send-code.mjs "<their email>"
+```
+
+This finds every Stripe Customer on that email (someone can end up with more
+than one if they checked out twice), pools their payments and subscriptions,
+picks the same code `/claim` would have given them right after checkout (a
+succeeded one-time payment is preferred over a subscription; ties go to the
+most recent), and **emails it to that address** — the code is never printed
+by this script or returned by the endpoint, only confirmation that a send
+happened. That's deliberate: knowing someone's email isn't proof you *are*
+them, but only the real owner can read what lands in their inbox.
+
+**Requires an email provider to be wired up first** (not done as of this
+writing — `sendEmail()` in `daybatch-worker.js` is a stub with a `TODO`
+where the real API call goes). Until a provider is picked and its
+`EMAIL_API_KEY`/`EMAIL_FROM` secrets are set, this errors clearly
+(`email sending not configured`) rather than silently failing.
+
+**Verify the requester before running this** — anyone who knows an email
+address can trigger a send to it. Confirm it's the email they actually
+checked out with (ask them to quote the last 4 of the card, or check it
+against the Stripe dashboard) before running the command.
+
+If it comes back `no Stripe customer found for that email` or `no successful
+payment or active subscription found`, the email doesn't match any completed
+Stripe checkout under that address — check the Stripe dashboard directly for
+a typo'd email or a payment still stuck in a pending/failed state before
+concluding they never actually paid.
 
 ## Testing
 

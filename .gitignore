@@ -7,3 +7,4 @@ playwright-report/
 # not meant to be shared (see worker/README.md).
 worker/wrangler.toml
 worker/.dev.vars
+worker/.wrangler/

@@ -4,7 +4,7 @@
 // are exercised manually once Darren deploys (see worker/README.md).
 import test from "node:test";
 import assert from "node:assert/strict";
-import { hmacHex, timingSafeEqual, makeCode, verifyCode, tierForStripeId, resolveOrigin, applyActivation, shouldAllowReset, REDEMPTION_CAP, OFFLINE_GRACE_MS, FREE_RESET_CAP } from "../../worker/daybatch-worker.js";
+import { hmacHex, timingSafeEqual, makeCode, verifyCode, tierForStripeId, resolveOrigin, applyActivation, shouldAllowReset, pickBestStripeId, REDEMPTION_CAP, OFFLINE_GRACE_MS, FREE_RESET_CAP } from "../../worker/daybatch-worker.js";
 
 test("hmacHex is deterministic and depends on both secret and message", async () => {
   const a = await hmacHex("secret1", "message");
@@ -102,6 +102,39 @@ test("shouldAllowReset: one free reset per code, further resets need --force", (
 
   // well past the cap without force: still refused
   assert.equal(shouldAllowReset(4, false).allowed, false);
+});
+
+test("pickBestStripeId: a succeeded lifetime payment always wins over any subscription", () => {
+  const paid = [{ id: "pi_old", status: "succeeded", created: 100 }];
+  const sub = [{ id: "sub_new", status: "active", created: 999 }];
+  assert.deepEqual(pickBestStripeId(paid, sub), { id: "pi_old", kind: "lifetime" });
+});
+
+test("pickBestStripeId: multiple succeeded payments — most recent `created` wins", () => {
+  const paid = [
+    { id: "pi_first", status: "succeeded", created: 100 },
+    { id: "pi_second", status: "succeeded", created: 300 },
+    { id: "pi_refunded", status: "canceled", created: 500 } // not succeeded, ignored
+  ];
+  assert.deepEqual(pickBestStripeId(paid, []), { id: "pi_second", kind: "lifetime" });
+});
+
+test("pickBestStripeId: no lifetime payment — falls back to the most recent active/trialing subscription", () => {
+  const subs = [
+    { id: "sub_cancelled", status: "canceled", created: 900 }, // ignored
+    { id: "sub_old_active", status: "active", created: 100 },
+    { id: "sub_trialing", status: "trialing", created: 200 }
+  ];
+  assert.deepEqual(pickBestStripeId([], subs), { id: "sub_trialing", kind: "subscription" });
+});
+
+test("pickBestStripeId: nothing succeeded or live — returns null", () => {
+  assert.equal(pickBestStripeId([], []), null);
+  assert.equal(pickBestStripeId(
+    [{ id: "pi_failed", status: "requires_payment_method", created: 1 }],
+    [{ id: "sub_cancelled", status: "canceled", created: 1 }]
+  ), null);
+  assert.equal(pickBestStripeId(undefined, undefined), null, "missing arrays degrade gracefully");
 });
 
 test("contract constants match the PLAN.md A9 design", () => {
