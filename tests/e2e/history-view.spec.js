@@ -1,8 +1,9 @@
-// B5: history overlay + per-game read-only replay of a past completed daily.
-// Seeds a synthetic history record (with a real snapshot per game, built
-// from the actual generators so puzzle content is genuine) rather than
-// playing full games — the record shape itself is what's under test here,
-// not gameplay (already covered by persistence.spec.js et al).
+// B5: history overlay (one date at a time, prev/next/calendar nav) + per-game
+// read-only replay of a past completed daily. Seeds a synthetic history
+// record (with a real snapshot per game, built from the actual generators so
+// puzzle content is genuine) rather than playing full games — the record
+// shape itself is what's under test here, not gameplay (already covered by
+// persistence.spec.js et al).
 import { test, expect } from "@playwright/test";
 import { dailySeed } from "../../src/core/rng.js";
 import { gen as genTally } from "../../src/games/tally.js";
@@ -13,6 +14,22 @@ import { gen as genCrossing } from "../../src/games/crossing.js";
 
 const HDATE = new Date(2026, 0, 1); // 1 Jan 2026 — a fixed past date, unrelated to "today"
 const HKEY = "2026-1-1";
+const PREV_KEY = "2025-12-31"; // the calendar day immediately before HDATE
+const TODAY_KEY = "2026-1-3"; // pinned "today" — 2 days after HKEY, so the Next-disables test is a couple of clicks, not hundreds
+
+async function pinDate(page) {
+  await page.addInitScript(() => {
+    const RealDate = Date;
+    const fixedMs = new RealDate(2026, 0, 3, 12, 0, 0).getTime();
+    window.Date = class extends RealDate {
+      constructor(...args) {
+        super();
+        return args.length ? new RealDate(...args) : new RealDate(fixedMs);
+      }
+      static now() { return fixedMs; }
+    };
+  });
+}
 
 function buildHistory() {
   const tSeed = dailySeed("tally", HDATE), tPuz = genTally(tSeed);
@@ -37,15 +54,16 @@ function buildHistory() {
       snapshot: { date: HKEY, seed: lSeed, letters: lPuz.letters, found: [lPuz.targets[0], lPuz.targets[1]], hinted: [lPuz.targets[0]], hints: 1, status: "win" } },
     { date: HKEY, game: "crossing", tier: 3, metrics: { steps: 3, lives: 1, win: true },
       snapshot: { date: HKEY, seed: rSeed, pos: 0, seen: [0], boomed: [5], lives: 1, steps: 3, status: "win" } },
-    // pre-B5 record: no snapshot at all — must render disabled, not throw
-    { date: "2025-12-25", game: "sonar", tier: 1, metrics: { pings: 7, hintsUsed: 0, win: true } }
+    // the day right before HKEY: one pre-B5 record (no snapshot) — must
+    // render disabled, not throw, when Prev steps back onto it
+    { date: PREV_KEY, game: "sonar", tier: 1, metrics: { pings: 7, hintsUsed: 0, win: true } }
   ];
 }
 async function seedPremiumWithHistory(page) {
   const history = buildHistory();
   await page.addInitScript((h) => {
     localStorage.setItem("daybatch:v1", JSON.stringify({
-      schema: 1, lastSeenDate: null, games: {}, history: h,
+      schema: 1, lastSeenDate: null, games: {}, history: h, onboardingShown: true,
       premium: { code: "LIFETIME1", tier: "lifetime", verifiedAt: Date.now(), expiresAt: null }
     }));
   }, history);
@@ -56,36 +74,68 @@ test("History button is premium-only", async ({ page }) => {
   await expect(page.locator("#hdr-history")).toBeHidden();
 });
 
-test("History overlay lists dates with Batch Score, per-game lines, and disables records with no snapshot", async ({ page }) => {
+test("History overlay defaults to the most recent date with a record, showing its Batch Score and per-game lines", async ({ page }) => {
   await seedPremiumWithHistory(page);
   await page.goto("/");
   await expect(page.locator("#hdr-history")).toBeVisible();
   await page.locator("#hdr-history").click();
   await expect(page.locator("#historyov.show")).toBeVisible();
 
-  await expect(page.locator(".hi-day-head", { hasText: HKEY })).toContainText("/100");
-  const day1Games = page.locator(".hi-day", { has: page.locator(".hi-day-head", { hasText: HKEY }) }).locator(".hi-game");
-  await expect(day1Games).toHaveCount(5);
-  await expect(day1Games.filter({ hasText: "not played" })).toHaveCount(0);
-
-  // the pre-B5 sonar record (no snapshot) renders disabled and un-clickable,
-  // same as the other 4 "not played" games on that older date
-  const oldDayGroup = page.locator(".hi-day", { has: page.locator(".hi-day-head", { hasText: "2025-12-25" }) });
-  const oldSonarRow = oldDayGroup.locator('.hi-game[data-game="sonar"]');
-  await expect(oldSonarRow).toHaveClass(/disabled/);
-  await expect(oldSonarRow).toHaveAttribute("disabled", "");
-  await expect(oldSonarRow).toContainText("Perfect"); // gameLine still renders from metrics even without a snapshot
-
-  // none of the HKEY rows (real snapshots) are disabled
-  const hkeyGroup = page.locator(".hi-day", { has: page.locator(".hi-day-head", { hasText: HKEY }) });
-  await expect(hkeyGroup.locator(".hi-game.disabled")).toHaveCount(0);
+  await expect(page.locator("#hi-date-text")).toHaveText(HKEY);
+  await expect(page.locator("#hi-date-score")).toContainText("/100");
+  const rows = page.locator(".hi-game");
+  await expect(rows).toHaveCount(5);
+  await expect(rows.filter({ hasText: "not played" })).toHaveCount(0);
+  await expect(rows.filter({ hasNotText: "not played" })).toHaveCount(5);
 });
 
-test("Tapping a history row switches tab and replays the exact snapshot, read-only", async ({ page }) => {
+test("Prev steps back a calendar day, shows a pre-B5 record (no snapshot) as disabled, and Next is disabled once back at today", async ({ page }) => {
+  await pinDate(page);
   await seedPremiumWithHistory(page);
   await page.goto("/");
   await page.locator("#hdr-history").click();
-  await page.locator('.hi-game[data-game="sonar"][data-date="' + HKEY + '"]').click();
+
+  // pinned "today" is TODAY_KEY, 2 days after HKEY — History defaults to the
+  // most recent date WITH A RECORD (HKEY), not necessarily today itself
+  await expect(page.locator("#hi-date-text")).toHaveText(HKEY);
+
+  await page.locator("#hi-prev").click();
+  await expect(page.locator("#hi-date-text")).toHaveText(PREV_KEY);
+  const sonarRow = page.locator('.hi-game[data-game="sonar"]');
+  await expect(sonarRow).toHaveClass(/disabled/);
+  await expect(sonarRow).toHaveAttribute("disabled", "");
+  await expect(sonarRow).toContainText("Perfect"); // gameLine still renders from metrics even without a snapshot
+  // the other 4 games have no record at all for this date
+  await expect(page.locator(".hi-game").filter({ hasText: "not played" })).toHaveCount(4);
+
+  await page.locator("#hi-next").click();
+  await expect(page.locator("#hi-date-text")).toHaveText(HKEY);
+  await expect(page.locator("#hi-next")).toBeEnabled(); // HKEY isn't today yet
+
+  await page.locator("#hi-next").click(); // -> 2026-1-2, still not today
+  await expect(page.locator("#hi-next")).toBeEnabled();
+  await page.locator("#hi-next").click(); // -> TODAY_KEY
+  await expect(page.locator("#hi-date-text")).toHaveText(TODAY_KEY);
+  await expect(page.locator("#hi-next")).toBeDisabled();
+});
+
+test("Tapping the date label opens a native date picker that jumps straight to the chosen date", async ({ page }) => {
+  await seedPremiumWithHistory(page);
+  await page.goto("/");
+  await page.locator("#hdr-history").click();
+  await page.locator("#hi-daylabel").click();
+
+  const input = page.locator("#hi-date-input");
+  await input.fill(PREV_KEY.split("-").map((n, i) => i === 0 ? n : n.padStart(2, "0")).join("-"));
+  await input.dispatchEvent("change");
+  await expect(page.locator("#hi-date-text")).toHaveText(PREV_KEY);
+});
+
+test("Tapping a game row switches tab and replays the exact snapshot, read-only", async ({ page }) => {
+  await seedPremiumWithHistory(page);
+  await page.goto("/");
+  await page.locator("#hdr-history").click();
+  await page.locator('.hi-game[data-game="sonar"]').click();
 
   await expect(page.locator("#historyov.show")).toHaveCount(0);
   await expect(page.locator('.tabs button[data-tab="sonar"]')).toHaveClass(/on/);
@@ -108,7 +158,7 @@ test("Codebreak history view shows which slots were hinted vs guessed", async ({
   await seedPremiumWithHistory(page);
   await page.goto("/");
   await page.locator("#hdr-history").click();
-  await page.locator('.hi-game[data-game="codebreak"][data-date="' + HKEY + '"]').click();
+  await page.locator('.hi-game[data-game="codebreak"]').click();
 
   await expect(page.locator("#pane-codebreak .stat:has(.lb:text('MODE')) .vl")).toHaveText("HISTORY");
   await expect(page.locator("#pane-codebreak").getByText("Hints: #1")).toBeVisible();
@@ -118,9 +168,8 @@ test("Lexi history view marks the hinted word distinctly from the self-found one
   await seedPremiumWithHistory(page);
   await page.goto("/");
   await page.locator("#hdr-history").click();
-  await page.locator('.hi-game[data-game="lexi"][data-date="' + HKEY + '"]').click();
+  await page.locator('.hi-game[data-game="lexi"]').click();
 
-  const snapshot = buildHistory()[3].snapshot;
   await expect(page.locator("#pane-lexi .lx-word.hinted")).toHaveCount(1);
   await expect(page.locator("#pane-lexi .lx-word.found:not(.hinted)")).toHaveCount(1);
 });
@@ -129,7 +178,7 @@ test("Today's button from a history view returns to today's live daily", async (
   await seedPremiumWithHistory(page);
   await page.goto("/");
   await page.locator("#hdr-history").click();
-  await page.locator('.hi-game[data-game="tally"][data-date="' + HKEY + '"]').click();
+  await page.locator('.hi-game[data-game="tally"]').click();
   await expect(page.locator("#pane-tally .stat:has(.lb:text('DATE'))")).toBeVisible();
 
   await page.locator("#ty-today").click();

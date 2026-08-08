@@ -194,38 +194,49 @@ function refreshRecords(){
   host.innerHTML=lines.length?lines.join(""):`<div class="st-empty">No Timed or Endless records yet.</div>`;
 }
 
-// B5: history overlay (premium) — records + one row per completed date, tap
-// a game's line to replay its exact end-state board read-only. Dates with a
-// record but no snapshot (completed before B5 shipped, or an unknown future
-// schema) render disabled rather than throwing on a game-view attempt.
-let historyov;
+// B5: history overlay (premium) — records + ONE date at a time (Darren, 8
+// Aug 2026: a scrolling list of every date would become huge over months —
+// prev/next steps by a single calendar day; tapping the date label opens a
+// native date picker for jumping straight to an arbitrary date, same
+// pattern as openArchive's <input type="date"> above). Tap a game's line to
+// replay its exact end-state board read-only. A record with no snapshot
+// (completed before B5 shipped, or an unknown future schema) renders
+// disabled rather than throwing on a game-view attempt; a date with no
+// record for a game at all renders "not played" the same way.
+let historyov,historyDate,historyOnOpen;
 export function openHistoryOverlay(onOpenGame){
   refreshRecords();
+  historyOnOpen=onOpenGame;
+  const history=getHistory();
+  const dates=[...new Set(history.map(r=>r.date))].sort();
+  historyDate=dates.length?parseKey(dates[dates.length-1]):new Date();
+  renderHistoryDay();
+  historyov.classList.add("show");
+}
+function parseKey(key){const[y,m,d]=key.split("-").map(Number);return new Date(y,m-1,d);}
+function renderHistoryDay(){
   const host=document.getElementById("hi-body");
   const history=getHistory();
-  const dates=[...new Set(history.map(r=>r.date))].sort().reverse();
-  if(!dates.length){
-    host.innerHTML=`<div class="hi-empty">No completed puzzles yet.</div>`;
-  } else {
-    host.innerHTML=dates.map(date=>{
-      const recs=recordsFor(history,date);
-      const rows=GAMES.map(g=>{
-        const r=recs.find(x=>x.game===g);
-        const has=r&&r.snapshot;
-        return `<button class="hi-game${has?"":" disabled"}" data-date="${date}" data-game="${g}"${has?"":" disabled"}>${gameLine(g,r||null)}</button>`;
-      }).join("");
-      return `<div class="hi-day"><div class="hi-day-head">${date} · ${dayScore(history,date)}/100</div><div class="hi-day-games">${rows}</div></div>`;
-    }).join("");
-    host.querySelectorAll(".hi-game:not(.disabled)").forEach(btn=>{
-      btn.onclick=()=>{
-        const {date,game}=btn.dataset;
-        const record=history.find(r=>r.game===game&&r.date===date);
-        historyov.classList.remove("show");
-        onOpenGame(game,date,record.snapshot);
-      };
-    });
-  }
-  historyov.classList.add("show");
+  const dateKey=localDateKey(historyDate);
+  const today=localDateKey();
+  document.getElementById("hi-date-text").textContent=dateKey;
+  document.getElementById("hi-date-score").textContent=dayScore(history,dateKey)+"/100";
+  document.getElementById("hi-next").disabled=dateKey===today;
+  const recs=recordsFor(history,dateKey);
+  const rows=GAMES.map(g=>{
+    const r=recs.find(x=>x.game===g);
+    const has=r&&r.snapshot;
+    return `<button class="hi-game${has?"":" disabled"}" data-game="${g}"${has?"":" disabled"}>${gameLine(g,r||null)}</button>`;
+  }).join("");
+  host.innerHTML=`<div class="hi-day-games">${rows}</div>`;
+  host.querySelectorAll(".hi-game:not(.disabled)").forEach(btn=>{
+    btn.onclick=()=>{
+      const game=btn.dataset.game;
+      const record=history.find(r=>r.game===game&&r.date===dateKey);
+      historyov.classList.remove("show");
+      historyOnOpen(game,dateKey,record.snapshot);
+    };
+  });
 }
 
 // B5: settings — haptics + colour-blind toggles only (free; records moved
@@ -274,6 +285,27 @@ export function initUI(){
   historyov=document.getElementById("historyov");
   document.getElementById("hi-close").onclick=()=>historyov.classList.remove("show");
   historyov.onclick=(e)=>{if(e.target===historyov)historyov.classList.remove("show");};
+  document.getElementById("hi-prev").onclick=()=>{
+    historyDate=new Date(historyDate.getFullYear(),historyDate.getMonth(),historyDate.getDate()-1);
+    renderHistoryDay();
+  };
+  document.getElementById("hi-next").onclick=()=>{
+    if(localDateKey(historyDate)===localDateKey())return; // already at today
+    historyDate=new Date(historyDate.getFullYear(),historyDate.getMonth(),historyDate.getDate()+1);
+    renderHistoryDay();
+  };
+  const hiDateInput=document.getElementById("hi-date-input");
+  document.getElementById("hi-daylabel").onclick=()=>{
+    hiDateInput.max=toDateInputValue(new Date());
+    hiDateInput.value=toDateInputValue(historyDate);
+    if(hiDateInput.showPicker)hiDateInput.showPicker(); else hiDateInput.focus();
+  };
+  hiDateInput.onchange=(e)=>{
+    if(!e.target.value)return;
+    const[y,m,d]=e.target.value.split("-").map(Number);
+    historyDate=new Date(y,m-1,d);
+    renderHistoryDay();
+  };
   settingsov=document.getElementById("settingsov");
   document.getElementById("h-settings").onclick=()=>{helpov.classList.remove("show");openSettingsOverlay();};
   document.getElementById("st-close").onclick=()=>settingsov.classList.remove("show");

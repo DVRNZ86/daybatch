@@ -275,7 +275,10 @@
 }
 #ar-close { margin-top:4px; width:100%; padding:10px; border:none; background:transparent; color:var(--faded); font-weight:600; font-family:inherit; font-size:13px; cursor:pointer; }
 
-/* B5: history overlay — premium-gated list of past completed dailies */
+/* B5: history overlay — premium-gated, one date at a time (Darren, 8 Aug
+   2026: a scrolling list of every date would grow huge over months — jump
+   between days with prev/next, or tap the date to open a native calendar
+   picker, same as Archive already does for arbitrary-date entry). */
 #historyov {
   position:fixed; inset:0; z-index:700; background:rgba(22,50,79,.5);
   display:none; align-items:center; justify-content:center; padding:20px;
@@ -290,11 +293,24 @@
 #hi-records-title { font-size:11px; letter-spacing:.14em; color:var(--faded); font-weight:600; margin-bottom:6px; }
 #hi-records { font-family:ui-monospace,monospace; font-size:13px; line-height:1.8; padding-bottom:10px; border-bottom:1px solid var(--grid); margin-bottom:10px; }
 #hi-records .st-empty { font-family:inherit; color:var(--faded); font-size:13px; }
+#hi-nav { display:flex; align-items:center; gap:8px; margin-bottom:10px; }
+#hi-prev, #hi-next {
+  width:36px; height:36px; flex:none; border:1px solid var(--grid); border-radius:10px;
+  background:var(--card); font-size:18px; font-weight:700; color:var(--ink); cursor:pointer;
+}
+#hi-prev:disabled, #hi-next:disabled { opacity:.3; cursor:default; }
+#hi-daylabel {
+  flex:1; border:1px solid var(--grid); border-radius:10px; background:var(--paper);
+  padding:6px 10px; cursor:pointer; display:flex; flex-direction:column; align-items:center;
+  font-family:ui-monospace,monospace;
+}
+#hi-date-text { font-size:13px; font-weight:700; color:var(--ink); }
+#hi-date-score { font-size:11px; color:var(--faded); }
+/* Invisible but still rendered (NOT display:none) — showPicker() throws
+   InvalidStateError on an element that isn't being rendered. Opened
+   programmatically via #hi-daylabel's click handler, never shown directly. */
+#hi-date-input { position:absolute; width:1px; height:1px; opacity:0; pointer-events:none; border:0; padding:0; }
 #hi-body { overflow-y:auto; flex:1; margin:0 -4px; padding:0 4px; }
-.hi-empty { font-size:13px; color:var(--faded); text-align:center; padding:20px 0; }
-.hi-day { border-bottom:1px solid var(--grid); padding:10px 0; }
-.hi-day:last-child { border-bottom:none; }
-.hi-day-head { font-family:ui-monospace,monospace; font-size:12px; font-weight:700; color:var(--faded); margin-bottom:6px; }
 .hi-day-games { display:flex; flex-direction:column; gap:2px; }
 .hi-game {
   text-align:left; border:none; background:transparent; padding:5px 6px; border-radius:8px;
