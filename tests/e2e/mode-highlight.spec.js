@@ -67,3 +67,19 @@ test("Lexi: a fast double-tap on the letter wheel is suppressed, without swallow
   await page.locator("#lx-check").click();
   await expect(page.locator(".lx-letter.sel")).toHaveCount(0);
 });
+
+test("Lexi: tool row buttons declare touch-action:manipulation (double-tap-zoom guard)", async ({ page }) => {
+  // B5 fix (Darren's phone test): a quick double-tap on Hint triggered
+  // native double-tap-zoom, easy to get stuck in. #lx-wheelwrap already had
+  // its own JS-level suppression (see the test above), but .lx-tools button
+  // — Back/Check/Shuffle/Hint — had no zoom defence at all. Fixed with
+  // touch-action:manipulation, the same browser-level declaration every
+  // other tap target in the app already carries (Sonar cells, Codebreak
+  // keys, .btn) — not another touchend preventDefault, which is what caused
+  // the Check-button click-eating regression the test above guards against.
+  await openTab(page, "lexi");
+  for (const id of ["lx-back", "lx-check", "lx-shuffle", "lx-hint"]) {
+    const touchAction = await page.locator(`#${id}`).evaluate(el => getComputedStyle(el).touchAction);
+    expect(touchAction, `#${id} should declare touch-action:manipulation`).toBe("manipulation");
+  }
+});

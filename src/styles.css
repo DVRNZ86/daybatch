@@ -186,6 +186,10 @@
   .lx-tools button {
     padding:8px 14px; border-radius:11px; border:1px solid var(--grid); background:var(--card);
     font-family:inherit; font-weight:600; font-size:13px; cursor:pointer; color:var(--ink);
+    touch-action:manipulation; /* B5 fix: a quick double-tap on Hint/Check/Shuffle/Back triggered
+      native double-tap-zoom — every other tap target in the app already declares this, Lexi's
+      tool row was the one gap. Browser-level fix, not touchend preventDefault: doesn't risk the
+      documented Check-button click-eating regression that approach caused before. */
   }
   /* result modal */
   #overlay {
