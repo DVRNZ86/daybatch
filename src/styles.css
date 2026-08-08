@@ -79,6 +79,7 @@
     color:#fff; font-weight:700; cursor:pointer; transition:background .18s; touch-action:manipulation;
   }
   .sn-row button.hit { background:linear-gradient(135deg,var(--marker),#FF8A3D); box-shadow:0 2px 8px #FF571455; }
+  .sn-row button.hit.hint { box-shadow:0 2px 8px #FF571455,0 0 0 2px var(--amber) inset; } /* B5: hint-revealed vs self-found */
   .sn-row button.miss { background:#E2ECF9; color:var(--blue); cursor:default; }
   .sn-row button.ship { background:var(--markerSoft); }
   /* codebreak */
@@ -259,6 +260,33 @@
   font-family:inherit; font-size:14px; color:var(--ink); margin-bottom:8px;
 }
 #ar-close { margin-top:4px; width:100%; padding:10px; border:none; background:transparent; color:var(--faded); font-weight:600; font-family:inherit; font-size:13px; cursor:pointer; }
+
+/* B5: history overlay — premium-gated list of past completed dailies */
+#historyov {
+  position:fixed; inset:0; z-index:700; background:rgba(22,50,79,.5);
+  display:none; align-items:center; justify-content:center; padding:20px;
+}
+#historyov.show { display:flex; animation:fadeIn .2s ease-out; }
+#historybox {
+  background:var(--card); border-radius:20px; width:100%; max-width:340px; padding:18px;
+  box-shadow:0 16px 48px rgba(22,50,79,.35); animation:popIn .25s ease-out;
+  max-height:80vh; display:flex; flex-direction:column;
+}
+#hi-title { font-weight:700; font-size:18px; margin-bottom:8px; }
+#hi-body { overflow-y:auto; flex:1; margin:0 -4px; padding:0 4px; }
+.hi-empty { font-size:13px; color:var(--faded); text-align:center; padding:20px 0; }
+.hi-day { border-bottom:1px solid var(--grid); padding:10px 0; }
+.hi-day:last-child { border-bottom:none; }
+.hi-day-head { font-family:ui-monospace,monospace; font-size:12px; font-weight:700; color:var(--faded); margin-bottom:6px; }
+.hi-day-games { display:flex; flex-direction:column; gap:2px; }
+.hi-game {
+  text-align:left; border:none; background:transparent; padding:5px 6px; border-radius:8px;
+  font-family:inherit; font-size:13px; color:var(--ink); cursor:pointer;
+}
+.hi-game:active { background:var(--paper); }
+.hi-game.disabled { color:var(--faded); cursor:default; opacity:.6; }
+#hi-close { margin-top:10px; width:100%; padding:10px; border:none; background:transparent; color:var(--faded); font-weight:600; font-family:inherit; font-size:13px; cursor:pointer; }
+#hdr-history { border:none; background:transparent; font-size:15px; margin-left:8px; padding:0; cursor:pointer; }
   .slimbar {
     margin-top:14px; background:var(--card); border-radius:14px; padding:10px 14px;
     display:flex; align-items:center; gap:10px;

@@ -15,6 +15,7 @@ let repeats=false; // D1: Codebreak: Repeats (premium)
 let timed=false; // D1: Timed mode (premium)
 let archiveDate=null; // D1: Archive (premium)
 let hintedSlots; // D1: Codebreak hint (premium) — Set of slot indices revealed
+let historyView=false; // B5: viewing a past completed daily read-only (see viewHistoryDate)
 const stopwatch=createStopwatch();
 
 export function gen(sd){
@@ -59,17 +60,17 @@ const BG={green:"var(--win)",amber:"var(--amber)",grey:"#CBD5E1"};
 const EMO={green:"🟩",amber:"🟨",grey:"⬜"};
 const CB_HELP=`Crack the hidden <b>5-shape code</b> — no shape repeats.<br><br>After each guess your shapes recolour to show the verdict:<br><b style="color:var(--win)">green</b> — right symbol, right slot<br><b style="color:var(--amber)">amber</b> — in the code, wrong slot<br><b>grey</b> — not in the code<br><br>The keyboard remembers what you've learned: eliminated shapes turn grey, confirmed ones get a coloured underline. You have <b>8 guesses</b>.`;
 let seed,dateCur;
-function load(sd,daily){seed=sd;isDaily=daily;repeats=false;timed=false;archiveDate=null;hintedSlots=new Set();dateCur=localDateKey();code=gen(sd);guesses=[];current=[];status="play";persist();render();}
+function load(sd,daily){seed=sd;isDaily=daily;repeats=false;timed=false;archiveDate=null;historyView=false;hintedSlots=new Set();dateCur=localDateKey();code=gen(sd);guesses=[];current=[];status="play";persist();render();}
 // D1: Codebreak: Repeats (premium) — ephemeral like practice, never touches
 // history/streaks (finish() only records when isDaily, which stays false).
 function loadRepeats(){
-  seed=Math.floor(Math.random()*1e9);isDaily=false;repeats=true;timed=false;archiveDate=null;hintedSlots=new Set();dateCur=localDateKey();
+  seed=Math.floor(Math.random()*1e9);isDaily=false;repeats=true;timed=false;archiveDate=null;historyView=false;hintedSlots=new Set();dateCur=localDateKey();
   code=genRepeats(seed);guesses=[];current=[];status="play";render();
 }
 // D1: Timed mode (premium) — ephemeral like practice, never touches
 // history/streaks (finish() only records when isDaily, which stays false).
 function loadTimed(){
-  seed=Math.floor(Math.random()*1e9);isDaily=false;repeats=false;timed=true;archiveDate=null;hintedSlots=new Set();dateCur=localDateKey();
+  seed=Math.floor(Math.random()*1e9);isDaily=false;repeats=false;timed=true;archiveDate=null;historyView=false;hintedSlots=new Set();dateCur=localDateKey();
   code=gen(seed);guesses=[];current=[];status="play";
   stopwatch.start(ms=>{const el=document.getElementById("cb-timer");if(el)el.textContent=formatMs(ms);});
   render();
@@ -77,8 +78,24 @@ function loadTimed(){
 // D1: Archive (premium) — replays any past date's puzzle via the
 // generalized dailySeed(game, date); ephemeral like practice.
 function startArchive(date){
-  seed=dailySeed("codebreak",date);isDaily=false;repeats=false;timed=false;archiveDate=date;hintedSlots=new Set();dateCur=localDateKey();
+  seed=dailySeed("codebreak",date);isDaily=false;repeats=false;timed=false;archiveDate=date;historyView=false;hintedSlots=new Set();dateCur=localDateKey();
   code=gen(seed);guesses=[];current=[];status="play";render();
+}
+// B5: view a past completed daily exactly as it was left (read-only). Same
+// restore path openDaily() uses for today's snapshot, just historical —
+// finish() only ever persists a terminal status, so this never re-enters an
+// editable board. Falls back to false if the record predates B5 (no
+// snapshot) or the historical seed fails to regenerate.
+export function viewHistoryDate(date,snapshot){
+  if(!snapshot)return false;
+  seed=dailySeed("codebreak",date);isDaily=false;repeats=false;timed=false;archiveDate=date;historyView=true;
+  hintedSlots=new Set(snapshot.hintedSlots||[]);dateCur=localDateKey();
+  code=gen(seed);
+  if(!code)return false;
+  guesses=snapshot.guesses;current=snapshot.current;status=snapshot.status;
+  render();
+  showSlimBar(result());
+  return true;
 }
 // D1: Codebreak hint (premium) — reveals one correct shape+position as an
 // info line (doesn't touch the in-progress guess). Costs nothing in
@@ -103,7 +120,7 @@ function openDaily(){
   const sd=dailySeed("codebreak");
   const s=getGameState("codebreak");
   if(s&&s.date===localDateKey()&&s.seed===sd){
-    seed=s.seed;isDaily=true;repeats=false;timed=false;archiveDate=null;hintedSlots=new Set(s.hintedSlots||[]);dateCur=s.date;code=gen(seed);guesses=s.guesses;current=s.current;status=s.status;render();
+    seed=s.seed;isDaily=true;repeats=false;timed=false;archiveDate=null;historyView=false;hintedSlots=new Set(s.hintedSlots||[]);dateCur=s.date;code=gen(seed);guesses=s.guesses;current=s.current;status=s.status;render();
     if(status!=="play")showSlimBar(result());
     return;
   }
@@ -158,7 +175,10 @@ function finish(){
   if(isDaily){
     const metrics={guesses:guesses.length,win:status==="win"};
     if(hintedSlots.size)metrics.hints=hintedSlots.size;
-    addHistory({date:dateCur,game:"codebreak",tier:tierFor(status,guesses.length+hintedSlots.size),metrics});
+    // B5: snapshot is whatever persist() just wrote (always runs right
+    // before finish() on every terminal path) — reused as-is so the
+    // history viewer replays exactly this state.
+    addHistory({date:dateCur,game:"codebreak",tier:tierFor(status,guesses.length+hintedSlots.size),metrics,snapshot:getGameState("codebreak")});
   }
   showResult(result());
 }
@@ -213,8 +233,10 @@ function render(){
   const timerStat=timed?`<div class="stat"><div class="lb">TIME</div><div class="vl" id="cb-timer" style="color:var(--marker)">${formatMs(stopwatch.elapsed())}</div></div>`:"";
   const dateStat=archiveDate?`<div class="stat"><div class="lb">DATE</div><div class="vl">${archiveDate.getMonth()+1}/${archiveDate.getDate()}</div></div>`:"";
   // D1: Codebreak hint (premium) — reveals correct shape+slot as an info
-  // line, kept separate from the in-progress guess row.
-  const hintLine=(status==="play"&&hintedSlots.size)
+  // line, kept separate from the in-progress guess row. B5: no longer
+  // gated to status==="play" — a finished/historical board should still
+  // show which slots were assisted vs guessed, not just "Code was: …".
+  const hintLine=hintedSlots.size
     ?`<div style="margin-top:6px;font-size:12px;color:var(--faded)">Hints: ${[...hintedSlots].sort((a,b)=>a-b).map(i=>
         `#${i+1} <i class="shp ${SYMS[code[i]][0]}" style="background:${SYMS[code[i]][1]};width:16px;height:16px;display:inline-block;vertical-align:middle;margin:0 6px 0 2px"></i>`
       ).join(" ")}</div>`
@@ -224,7 +246,7 @@ function render(){
       <button class="helpbtn" id="cb-help">?</button>
       <div class="stat big"><div class="lb">GUESSES</div><div class="vl" style="color:var(--marker)">${guesses.length}/${maxG}</div></div>
       ${timerStat}${dateStat}
-      <div class="stat"><div class="lb">MODE</div><div class="vl" style="color:var(--faded)">${repeats?"REPEATS":timed?"TIMED":archiveDate?"ARCHIVE":isDaily?"DAILY":"PRAC"}</div></div>
+      <div class="stat"><div class="lb">MODE</div><div class="vl" style="color:var(--faded)">${historyView?"HISTORY":repeats?"REPEATS":timed?"TIMED":archiveDate?"ARCHIVE":isDaily?"DAILY":"PRAC"}</div></div>
     </div>
     <div class="board"><div class="cb-rows">${rows}${inputRow}</div>${hintLine}</div>
     ${keys}

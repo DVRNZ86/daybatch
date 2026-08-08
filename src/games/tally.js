@@ -100,6 +100,23 @@ function startArchive(date){
   if(!puz)puz=gen((seedCur+99991)>>>0);
   path=[START];attempts=0;status="play";buildDOM();
 }
+// B5: view a past completed daily exactly as it was left (read-only). Same
+// restore path openDaily() uses for today's snapshot, just historical —
+// finish() only ever persists a terminal status, so this never re-enters an
+// editable board. Falls back to false if the record predates B5 (no
+// snapshot) or the historical seed fails to regenerate.
+export function viewHistoryDate(date,snapshot){
+  if(!snapshot)return false;
+  isDaily=false;timed=false;archiveDate=date;seedCur=dailySeed("tally",date);dateCur=localDateKey();
+  puz=gen(seedCur);
+  if(!puz)puz=gen((seedCur+99991)>>>0);
+  if(!puz)return false;
+  path=snapshot.path;attempts=snapshot.attempts;status=snapshot.status;
+  buildDOM();
+  elTries.textContent=attempts;
+  showSlimBar(result());
+  return true;
+}
 // B2 persistence: daily games snapshot on every mutation; practice is ephemeral.
 function persist(){
   if(!isDaily)return;
@@ -261,7 +278,10 @@ function result(){
     slimHost:pane.querySelector(".slimhost")};
 }
 function finish(){
-  if(isDaily)addHistory({date:dateCur,game:"tally",tier:tierFor(path.length,puz.par,attempts),metrics:{moves:path.length,par:puz.par,attempts,win:true}});
+  // B5: snapshot is whatever persist() just wrote (always runs right before
+  // finish() on every terminal path) — reused as-is so the history viewer
+  // replays exactly this state.
+  if(isDaily)addHistory({date:dateCur,game:"tally",tier:tierFor(path.length,puz.par,attempts),metrics:{moves:path.length,par:puz.par,attempts,win:true},snapshot:getGameState("tally")});
   showResult(result());
 }
 export function initTally(){
