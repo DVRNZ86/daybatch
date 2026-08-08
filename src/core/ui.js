@@ -2,7 +2,8 @@
 // Ported verbatim from v13. DOM lookups happen in initUI() (called once from
 // main.js) so game modules stay importable in Node for logic tests.
 import { shareText, batchCard, gameLine, puzzleLabel, isPreseason, PRESEASON_NOTE } from "./share.js";
-import { getHistory, localDateKey, getEntitlement, isPremium } from "./storage.js";
+import { getHistory, localDateKey, getEntitlement, isPremium, getHapticsEnabled, setHapticsEnabled, getColorblindMode, setColorblindMode, getBestTime, getCrossingEndlessBest, getOnboardingShown, setOnboardingShown } from "./storage.js";
+import { formatMs } from "./timer.js";
 import { GAMES, dayScore, batchStreak, recordsFor, isPerfectBatch, perfectStreak } from "./streaks.js";
 import { redeemCode, PAYMENT_LINKS, PORTAL_URL } from "./entitlement.js";
 
@@ -102,7 +103,7 @@ export function showSlimBar(ctx){
 export function showResult(ctx){ // {win,title,line,share,onAgain,slimHost}
   fillModal(ctx);
   overlay.classList.add("show");
-  if(ctx.win){confetti();try{navigator.vibrate&&navigator.vibrate([35,60,35,60,90]);}catch(e){}}
+  if(ctx.win){confetti();if(getHapticsEnabled()){try{navigator.vibrate&&navigator.vibrate([35,60,35,60,90]);}catch(e){}}}
   showSlimBar(ctx);
   refreshReport(); // B3: a finish may change today's score/streak
 }
@@ -176,12 +177,30 @@ export function openArchive(onPick){
   };
 }
 
-// B5: history overlay (premium) — one row per completed date, tap a game's
-// line to replay its exact end-state board read-only. Dates with a record
-// but no snapshot (completed before B5 shipped, or an unknown future
+// B5: personal-best records — part of the premium-gated stats screen
+// (PLAN.md B5: "stats screen (history, records)... premium-gated"), so this
+// renders inside the History overlay, not the free Settings overlay.
+const GAME_LABEL={tally:"🧮 Tally",crossing:"🧭 Crossing",sonar:"📡 Sonar",codebreak:"🔐 Codebreak",lexi:"🔤 Lexi"};
+function refreshRecords(){
+  const host=document.getElementById("hi-records");
+  if(!host)return;
+  const lines=[];
+  for(const g of GAMES){
+    const t=getBestTime(g);
+    if(t!==null)lines.push(`<div>${GAME_LABEL[g]} ⏱ ${formatMs(t)}</div>`);
+  }
+  const endless=getCrossingEndlessBest();
+  if(endless>0)lines.push(`<div>🧭 Crossing ♾️ ${endless} board${endless===1?"":"s"}</div>`);
+  host.innerHTML=lines.length?lines.join(""):`<div class="st-empty">No Timed or Endless records yet.</div>`;
+}
+
+// B5: history overlay (premium) — records + one row per completed date, tap
+// a game's line to replay its exact end-state board read-only. Dates with a
+// record but no snapshot (completed before B5 shipped, or an unknown future
 // schema) render disabled rather than throwing on a game-view attempt.
 let historyov;
 export function openHistoryOverlay(onOpenGame){
+  refreshRecords();
   const host=document.getElementById("hi-body");
   const history=getHistory();
   const dates=[...new Set(history.map(r=>r.date))].sort().reverse();
@@ -209,6 +228,31 @@ export function openHistoryOverlay(onOpenGame){
   historyov.classList.add("show");
 }
 
+// B5: settings — haptics + colour-blind toggles only (free; records moved
+// to the premium History overlay above, per PLAN.md's "stats screen
+// (history, records)... premium-gated"). Colour-blind mode applies as a
+// body class so any game can style off it (Codebreak's verdict tiles are
+// the only current consumer — see codebreak.js).
+export function applyColorblindMode(){
+  document.body.classList.toggle("cb-mode",getColorblindMode());
+}
+let settingsov;
+export function openSettingsOverlay(){
+  document.getElementById("st-haptics").checked=getHapticsEnabled();
+  document.getElementById("st-colorblind").checked=getColorblindMode();
+  settingsov.classList.add("show");
+}
+
+// B5: one-time first-run onboarding — an in-flow banner (same shown-once
+// pattern as the B4 install hint), not a blocking modal: everything below it
+// stays reachable immediately, it just adds one dismissible intro card above
+// the tabs on a genuinely first visit.
+let onboardingEl;
+export function maybeShowOnboarding(){
+  if(getOnboardingShown())return;
+  onboardingEl.classList.remove("hide");
+}
+
 let premiumov;
 
 // D1: post-checkout feedback — opens the premium overlay with a result
@@ -230,6 +274,15 @@ export function initUI(){
   historyov=document.getElementById("historyov");
   document.getElementById("hi-close").onclick=()=>historyov.classList.remove("show");
   historyov.onclick=(e)=>{if(e.target===historyov)historyov.classList.remove("show");};
+  settingsov=document.getElementById("settingsov");
+  document.getElementById("h-settings").onclick=()=>{helpov.classList.remove("show");openSettingsOverlay();};
+  document.getElementById("st-close").onclick=()=>settingsov.classList.remove("show");
+  settingsov.onclick=(e)=>{if(e.target===settingsov)settingsov.classList.remove("show");};
+  document.getElementById("st-haptics").onchange=(e)=>setHapticsEnabled(e.target.checked);
+  document.getElementById("st-colorblind").onchange=(e)=>{setColorblindMode(e.target.checked);applyColorblindMode();};
+  onboardingEl=document.getElementById("onboarding");
+  document.getElementById("ob-start").onclick=()=>{setOnboardingShown();onboardingEl.classList.add("hide");};
+  applyColorblindMode();
   document.getElementById("m-close").onclick=()=>overlay.classList.remove("show");
   overlay.onclick=(e)=>{if(e.target===overlay)overlay.classList.remove("show");};
   document.getElementById("m-copy").onclick=async()=>{

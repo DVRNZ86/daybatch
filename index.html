@@ -21,7 +21,12 @@
     <span id="hdr-premium" class="hide" title="Premium">👑</span>
     <button id="hdr-history" class="hide" title="History">📖</button>
     <span id="hdr-streak" class="hide"></span>
-    <div class="ver">v0.B5.1 · 5 GAMES</div>
+    <div class="ver">v0.B5.2 · 5 GAMES</div>
+  </div>
+  <div id="onboarding" class="hide">
+    <div id="ob-title">Five puzzles. Every day. That's it.</div>
+    <div id="ob-body">One fresh batch — Tally, Crossing, Sonar, Codebreak and Lexi — drops every midnight, your midnight. Same puzzles for everyone that day. Play one or play all five, then come back tomorrow for the next batch.</div>
+    <button class="btn pri" id="ob-start">Let's go</button>
   </div>
   <div id="rollover" class="hide">
     <span>New batch is ready 🌅</span>
@@ -45,6 +50,9 @@
   <div id="pane-codebreak" class="hide"></div>
   <div id="pane-lexi" class="hide"></div>
   <div id="report-host"></div>
+  <div id="footer-social" title="Follow along soon">
+    <span>🎵</span><span>📷</span><span>👽</span><span>✕</span><span>▶️</span>
+  </div>
 </div>
 
 <div id="helpov">
@@ -53,6 +61,7 @@
     <div id="h-body"></div>
     <button class="btn pri" style="width:100%;margin-top:12px" id="h-close">Got it</button>
     <button id="h-install" class="hide">Add to home screen 🌅</button>
+    <button id="h-settings">⚙️ Settings</button>
     <div id="h-premium-row">
       <span id="h-premium-status">Free plan</span>
       <button id="h-premium-open">Unlock premium</button>
@@ -93,9 +102,20 @@
   </div>
 </div>
 
+<div id="settingsov">
+  <div id="settingsbox">
+    <div id="st-title">Settings</div>
+    <label class="st-row"><span>Haptics on win</span><input type="checkbox" id="st-haptics"></label>
+    <label class="st-row"><span>Colour-blind mode <small>(Codebreak verdict icons)</small></span><input type="checkbox" id="st-colorblind"></label>
+    <button id="st-close">Close</button>
+  </div>
+</div>
+
 <div id="historyov">
   <div id="historybox">
     <div id="hi-title">History</div>
+    <div id="hi-records-title">Records</div>
+    <div id="hi-records"></div>
     <div id="hi-body"></div>
     <button id="hi-close">Close</button>
   </div>

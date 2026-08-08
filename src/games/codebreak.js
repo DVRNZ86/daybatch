@@ -201,8 +201,12 @@ function render(){
   let rows="";
   guesses.forEach((g,gi)=>{
     const v=verdictRow(g);
+    // B5: data-v carries the verdict as an attribute (not just background
+    // color) so colour-blind mode (settings) can overlay a shape/icon badge
+    // via CSS — green/amber is the classic red-green-colorblind failure
+    // case, and it's the entire deduction mechanic here.
     rows+=`<div class="cb-row"><span class="cb-num">${gi+1}</span><div class="cb-tiles">${
-      g.map((s,i)=>`<span class="cb-tile"><i class="shp ${SYMS[s][0]}" style="background:${BG[v[i]]}"></i></span>`).join("")
+      g.map((s,i)=>`<span class="cb-tile" data-v="${v[i]}"><i class="shp ${SYMS[s][0]}" style="background:${BG[v[i]]}"></i></span>`).join("")
     }</div></div>`;
   });
   if(!guesses.length&&status==="play")

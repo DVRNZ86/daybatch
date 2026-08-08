@@ -1,6 +1,6 @@
 // Boot + tab router + lazy init. Ported verbatim from v13; the only change is
 // that game init functions live in modules and UI wiring happens via initUI().
-import { initUI, refreshReport, refreshPremiumStatus, showPremiumResult, openHistoryOverlay } from "./core/ui.js";
+import { initUI, refreshReport, refreshPremiumStatus, showPremiumResult, openHistoryOverlay, maybeShowOnboarding } from "./core/ui.js";
 import { getLastSeenDate, setLastSeenDate, localDateKey, getInstallHintShown, setInstallHintShown } from "./core/storage.js";
 import { claimSession, maybeReverify } from "./core/entitlement.js";
 import { initTally, viewHistoryDate as viewHistoryTally } from "./games/tally.js";
@@ -10,6 +10,9 @@ import { initCodebreak, viewHistoryDate as viewHistoryCodebreak } from "./games/
 import { initLexi, viewHistoryDate as viewHistoryLexi } from "./games/lexi.js";
 
 initUI();
+
+// B5: one-screen first-run onboarding — shown once, before anything else.
+maybeShowOnboarding();
 
 // D1: post-checkout auto-claim. Stripe's Payment Links redirect back to
 // "/?session_id=cs_..."; exchange it for a code and redeem in one step, then

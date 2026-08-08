@@ -87,7 +87,16 @@
   .cb-row { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
   .cb-num { font-family:ui-monospace,monospace; font-size:11px; color:var(--faded); width:14px; }
   .cb-tiles { display:flex; gap:6px; }
-  .cb-tile { width:37px; height:37px; padding:1px; }
+  .cb-tile { width:37px; height:37px; padding:1px; position:relative; }
+  /* B5: colour-blind mode (settings) — verdict badge, not just background hue */
+  body.cb-mode .cb-tile[data-v]::after {
+    position:absolute; bottom:-3px; right:-3px; width:15px; height:15px; border-radius:50%;
+    background:#fff; font-size:9px; font-weight:800; line-height:1;
+    display:flex; align-items:center; justify-content:center;
+  }
+  body.cb-mode .cb-tile[data-v="green"]::after { content:"✓"; color:var(--win); border:1.5px solid var(--win); }
+  body.cb-mode .cb-tile[data-v="amber"]::after { content:"•"; color:var(--amber); border:1.5px solid var(--amber); }
+  body.cb-mode .cb-tile[data-v="grey"]::after { content:"✕"; color:#94A3B8; border:1.5px solid #94A3B8; }
   .cb-slot {
     width:37px; height:37px; border-radius:10px; display:flex; align-items:center; justify-content:center;
     font-size:18px; background:#fff; border:2px dashed #FF571455; color:var(--faded); cursor:pointer;
@@ -201,6 +210,7 @@
   }
   #m-close { margin-top:8px; width:100%; padding:10px; border:none; background:transparent; color:var(--faded); font-weight:600; font-family:inherit; font-size:13px; cursor:pointer; }
   #h-install { margin-top:8px; width:100%; padding:10px; border:none; background:transparent; color:var(--faded); font-weight:600; font-family:inherit; font-size:13px; cursor:pointer; }
+  #h-settings { margin-top:4px; width:100%; padding:10px; border:none; background:transparent; color:var(--faded); font-weight:600; font-family:inherit; font-size:13px; cursor:pointer; }
 
 /* D1: premium status row (help overlay) + redeem overlay */
 #h-premium-row {
@@ -273,6 +283,9 @@
   max-height:80vh; display:flex; flex-direction:column;
 }
 #hi-title { font-weight:700; font-size:18px; margin-bottom:8px; }
+#hi-records-title { font-size:11px; letter-spacing:.14em; color:var(--faded); font-weight:600; margin-bottom:6px; }
+#hi-records { font-family:ui-monospace,monospace; font-size:13px; line-height:1.8; padding-bottom:10px; border-bottom:1px solid var(--grid); margin-bottom:10px; }
+#hi-records .st-empty { font-family:inherit; color:var(--faded); font-size:13px; }
 #hi-body { overflow-y:auto; flex:1; margin:0 -4px; padding:0 4px; }
 .hi-empty { font-size:13px; color:var(--faded); text-align:center; padding:20px 0; }
 .hi-day { border-bottom:1px solid var(--grid); padding:10px 0; }
@@ -287,6 +300,45 @@
 .hi-game.disabled { color:var(--faded); cursor:default; opacity:.6; }
 #hi-close { margin-top:10px; width:100%; padding:10px; border:none; background:transparent; color:var(--faded); font-weight:600; font-family:inherit; font-size:13px; cursor:pointer; }
 #hdr-history { border:none; background:transparent; font-size:15px; margin-left:8px; padding:0; cursor:pointer; }
+
+/* B5: settings overlay — haptics/colour-blind toggles (free; records live in
+   the premium History overlay's #hi-records above) */
+#settingsov {
+  position:fixed; inset:0; z-index:700; background:rgba(22,50,79,.5);
+  display:none; align-items:center; justify-content:center; padding:20px;
+}
+#settingsov.show { display:flex; animation:fadeIn .2s ease-out; }
+#settingsbox {
+  background:var(--card); border-radius:20px; width:100%; max-width:340px; padding:18px;
+  box-shadow:0 16px 48px rgba(22,50,79,.35); animation:popIn .25s ease-out;
+}
+#st-title { font-weight:700; font-size:18px; margin-bottom:10px; }
+.st-row {
+  display:flex; align-items:center; gap:10px; padding:10px 0; border-bottom:1px solid var(--grid);
+  font-size:14px; cursor:pointer;
+}
+.st-row span { flex:1; }
+.st-row small { display:block; color:var(--faded); font-weight:400; font-size:11px; margin-top:2px; }
+.st-row input { width:20px; height:20px; accent-color:var(--marker); flex:none; }
+#st-close { margin-top:12px; width:100%; padding:10px; border:none; background:transparent; color:var(--faded); font-weight:600; font-family:inherit; font-size:13px; cursor:pointer; }
+
+/* B5: one-time first-run onboarding — an in-flow intro card, not a blocking
+   modal (nothing else in the app auto-shows atop everything else on boot;
+   this stays consistent with #rollover/#installhint's shown-once banners so
+   the rest of the page is always reachable underneath). */
+#onboarding {
+  text-align:center; margin-bottom:8px; background:var(--card); border:1px solid var(--grid);
+  border-radius:16px; padding:18px 16px; box-shadow:0 4px 20px rgba(22,50,79,.08);
+  animation:popIn .3s ease-out;
+}
+#ob-title { font-weight:700; font-size:19px; margin-bottom:8px; color:#0B1F33; }
+#ob-body { font-size:13px; color:var(--faded); line-height:1.55; margin-bottom:14px; }
+#onboarding .btn { width:100%; }
+
+/* B5: footer social row — stubbed until real accounts exist (D2) */
+#footer-social {
+  display:flex; justify-content:center; gap:14px; margin-top:10px; opacity:.35; font-size:16px;
+}
   .slimbar {
     margin-top:14px; background:var(--card); border-radius:14px; padding:10px 14px;
     display:flex; align-items:center; gap:10px;
