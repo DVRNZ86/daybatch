@@ -116,8 +116,10 @@ export function refreshPremiumStatus(){
   const statusEl=document.getElementById("h-premium-status");
   const openBtn=document.getElementById("h-premium-open");
   const badge=document.getElementById("hdr-premium");
+  const historyBtn=document.getElementById("hdr-history");
   const premium=isPremium();
   if(badge)badge.classList.toggle("hide",!premium);
+  if(historyBtn)historyBtn.classList.toggle("hide",!premium); // B5: history is premium-gated, same as Timed/Archive
   // The premium overlay flips between its two jobs: selling (buy buttons +
   // code entry) for free users, and showing the owner their code (their key
   // to a second device / new phone — never shown anywhere else) once premium.
@@ -174,6 +176,39 @@ export function openArchive(onPick){
   };
 }
 
+// B5: history overlay (premium) — one row per completed date, tap a game's
+// line to replay its exact end-state board read-only. Dates with a record
+// but no snapshot (completed before B5 shipped, or an unknown future
+// schema) render disabled rather than throwing on a game-view attempt.
+let historyov;
+export function openHistoryOverlay(onOpenGame){
+  const host=document.getElementById("hi-body");
+  const history=getHistory();
+  const dates=[...new Set(history.map(r=>r.date))].sort().reverse();
+  if(!dates.length){
+    host.innerHTML=`<div class="hi-empty">No completed puzzles yet.</div>`;
+  } else {
+    host.innerHTML=dates.map(date=>{
+      const recs=recordsFor(history,date);
+      const rows=GAMES.map(g=>{
+        const r=recs.find(x=>x.game===g);
+        const has=r&&r.snapshot;
+        return `<button class="hi-game${has?"":" disabled"}" data-date="${date}" data-game="${g}"${has?"":" disabled"}>${gameLine(g,r||null)}</button>`;
+      }).join("");
+      return `<div class="hi-day"><div class="hi-day-head">${date} · ${dayScore(history,date)}/100</div><div class="hi-day-games">${rows}</div></div>`;
+    }).join("");
+    host.querySelectorAll(".hi-game:not(.disabled)").forEach(btn=>{
+      btn.onclick=()=>{
+        const {date,game}=btn.dataset;
+        const record=history.find(r=>r.game===game&&r.date===date);
+        historyov.classList.remove("show");
+        onOpenGame(game,date,record.snapshot);
+      };
+    });
+  }
+  historyov.classList.add("show");
+}
+
 let premiumov;
 
 // D1: post-checkout feedback — opens the premium overlay with a result
@@ -192,6 +227,9 @@ export function initUI(){
   archiveov=document.getElementById("archiveov");
   document.getElementById("ar-close").onclick=()=>archiveov.classList.remove("show");
   archiveov.onclick=(e)=>{if(e.target===archiveov)archiveov.classList.remove("show");};
+  historyov=document.getElementById("historyov");
+  document.getElementById("hi-close").onclick=()=>historyov.classList.remove("show");
+  historyov.onclick=(e)=>{if(e.target===historyov)historyov.classList.remove("show");};
   document.getElementById("m-close").onclick=()=>overlay.classList.remove("show");
   overlay.onclick=(e)=>{if(e.target===overlay)overlay.classList.remove("show");};
   document.getElementById("m-copy").onclick=async()=>{

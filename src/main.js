@@ -1,13 +1,13 @@
 // Boot + tab router + lazy init. Ported verbatim from v13; the only change is
 // that game init functions live in modules and UI wiring happens via initUI().
-import { initUI, refreshReport, refreshPremiumStatus, showPremiumResult } from "./core/ui.js";
+import { initUI, refreshReport, refreshPremiumStatus, showPremiumResult, openHistoryOverlay } from "./core/ui.js";
 import { getLastSeenDate, setLastSeenDate, localDateKey, getInstallHintShown, setInstallHintShown } from "./core/storage.js";
 import { claimSession, maybeReverify } from "./core/entitlement.js";
-import { initTally } from "./games/tally.js";
-import { initCrossing } from "./games/crossing.js";
-import { initSonar } from "./games/sonar.js";
-import { initCodebreak } from "./games/codebreak.js";
-import { initLexi } from "./games/lexi.js";
+import { initTally, viewHistoryDate as viewHistoryTally } from "./games/tally.js";
+import { initCrossing, viewHistoryDate as viewHistoryCrossing } from "./games/crossing.js";
+import { initSonar, viewHistoryDate as viewHistorySonar } from "./games/sonar.js";
+import { initCodebreak, viewHistoryDate as viewHistoryCodebreak } from "./games/codebreak.js";
+import { initLexi, viewHistoryDate as viewHistoryLexi } from "./games/lexi.js";
 
 initUI();
 
@@ -44,15 +44,29 @@ window.addEventListener("beforeinstallprompt", (e) => {
 // tabs + lazy init (heavy generators must not block first paint)
 const INIT={tally:initTally,crossing:initCrossing,sonar:initSonar,codebreak:initCodebreak,lexi:initLexi},DONE={};
 function ensureInit(t){ if(!DONE[t]&&INIT[t]){ DONE[t]=1; try{INIT[t]();}catch(e){} } }
+function switchTab(tab){
+  document.querySelectorAll(".tabs button").forEach(x=>x.classList.toggle("on",x.dataset.tab===tab));
+  ["tally","crossing","sonar","codebreak","lexi"].forEach(t=>{
+    document.getElementById("pane-"+t).classList.toggle("hide",t!==tab);
+  });
+  ensureInit(tab);
+}
 document.querySelectorAll(".tabs button").forEach(b=>{
-  b.onclick=()=>{
-    document.querySelectorAll(".tabs button").forEach(x=>x.classList.toggle("on",x===b));
-    ["tally","crossing","sonar","codebreak","lexi"].forEach(t=>{
-      document.getElementById("pane-"+t).classList.toggle("hide",t!==b.dataset.tab);
-    });
-    ensureInit(b.dataset.tab);
-  };
+  b.onclick=()=>switchTab(b.dataset.tab);
 });
+
+// B5: history overlay — switch to the tapped game's tab, then replay its
+// stored end-state snapshot for that date read-only. "Y-M-D" (unpadded,
+// device-local) is the same key shape localDateKey()/streaks.js use
+// throughout, parsed the same way everywhere it's turned back into a Date.
+const VIEW_HISTORY={tally:viewHistoryTally,crossing:viewHistoryCrossing,sonar:viewHistorySonar,codebreak:viewHistoryCodebreak,lexi:viewHistoryLexi};
+document.getElementById("hdr-history").onclick=()=>{
+  openHistoryOverlay((game,dateKey,snapshot)=>{
+    switchTab(game);
+    const [y,m,d]=dateKey.split("-").map(Number);
+    VIEW_HISTORY[game](new Date(y,m-1,d),snapshot);
+  });
+};
 
 // B2 rollover watcher: when the app comes back into view on a new device-local
 // day, offer fresh dailies via the banner — never silently reset a live game.
