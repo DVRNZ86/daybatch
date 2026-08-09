@@ -112,7 +112,7 @@ test("Crossing: finished daily restores as result bar, not a fresh puzzle or mod
   // history recorded once, tier 1 (flawless), and a replayed finish never duplicates
   const h = await readHistory(page);
   expect(h.filter(r => r.game === "crossing")).toEqual([
-    { date: DATE_KEY, game: "crossing", tier: 1, metrics: { steps: crossingSafePath().length, lives: 3, win: true } }
+    { date: DATE_KEY, game: "crossing", tier: 1, metrics: { steps: crossingSafePath().length, lives: 3, win: true }, snapshot: expect.any(Object) }
   ]);
   expect(errors).toEqual([]);
 });
@@ -157,7 +157,7 @@ test("Sonar: mid-game pings survive a reload; perfect finish restores as bar", a
 
   const h = await readHistory(page);
   expect(h.filter(r => r.game === "sonar")).toEqual([
-    { date: DATE_KEY, game: "sonar", tier: 2, metrics: { pings: 8, hintsUsed: 0, win: true } }
+    { date: DATE_KEY, game: "sonar", tier: 2, metrics: { pings: 8, hintsUsed: 0, win: true }, snapshot: expect.any(Object) }
   ]);
   expect(errors).toEqual([]);
 });
@@ -203,7 +203,7 @@ test("Codebreak: guesses and partial input survive reload; solve restores as bar
 
   const h = await readHistory(page);
   expect(h.filter(r => r.game === "codebreak")).toEqual([
-    { date: DATE_KEY, game: "codebreak", tier: 1, metrics: { guesses: 2, win: true } }
+    { date: DATE_KEY, game: "codebreak", tier: 1, metrics: { guesses: 2, win: true }, snapshot: expect.any(Object) }
   ]);
   expect(errors).toEqual([]);
 });
@@ -269,7 +269,7 @@ test("Tally: mid-game path survives reload; par win restores as bar", async ({ p
   const h = await readHistory(page);
   const { puz } = await tallyParPath();
   expect(h.filter(r => r.game === "tally")).toEqual([
-    { date: DATE_KEY, game: "tally", tier: 1, metrics: { moves: puz.par, par: puz.par, attempts: 1, win: true } }
+    { date: DATE_KEY, game: "tally", tier: 1, metrics: { moves: puz.par, par: puz.par, attempts: 1, win: true }, snapshot: expect.any(Object) }
   ]);
   expect(errors).toEqual([]);
 });
@@ -306,7 +306,7 @@ test("Tally: Clear path after a win doesn't corrupt the saved result", async ({ 
 
   const h = await readHistory(page);
   expect(h.filter(r => r.game === "tally")).toEqual([
-    { date: DATE_KEY, game: "tally", tier: 1, metrics: { moves: puz.par, par: puz.par, attempts: 1, win: true } }
+    { date: DATE_KEY, game: "tally", tier: 1, metrics: { moves: puz.par, par: puz.par, attempts: 1, win: true }, snapshot: expect.any(Object) }
   ]);
   expect(errors).toEqual([]);
 });
@@ -369,7 +369,7 @@ test("Lexi: found words, hints and wheel order survive reload; win restores as b
 
   const h = await readHistory(page);
   expect(h.filter(r => r.game === "lexi")).toEqual([
-    { date: DATE_KEY, game: "lexi", tier: 3, metrics: { words: N, hints: N - 2, win: true } }
+    { date: DATE_KEY, game: "lexi", tier: 3, metrics: { words: N, hints: N - 2, win: true }, snapshot: expect.any(Object) }
   ]);
   expect(errors).toEqual([]);
 });

@@ -110,6 +110,32 @@ export function setInstallHintShown() {
   saveRoot();
 }
 
+// ---- B5: one-time onboarding ----
+// Optional additive field on the schema-1 root; absent means "not shown yet".
+// No schema bump or migration needed. Same pattern as the B4 install hint.
+
+export function getOnboardingShown() { return loadRoot().onboardingShown === true; }
+export function setOnboardingShown() {
+  loadRoot().onboardingShown = true;
+  saveRoot();
+}
+
+// ---- B5: settings ----
+// Optional additive fields on the schema-1 root; absent means the default
+// (haptics on, colour-blind mode off). No schema bump or migration needed.
+
+export function getHapticsEnabled() { return loadRoot().hapticsEnabled !== false; }
+export function setHapticsEnabled(on) {
+  loadRoot().hapticsEnabled = on;
+  saveRoot();
+}
+
+export function getColorblindMode() { return loadRoot().colorblindMode === true; }
+export function setColorblindMode(on) {
+  loadRoot().colorblindMode = on;
+  saveRoot();
+}
+
 // ---- D1: premium entitlement ----
 // Optional additive field on the schema-1 root; absent/null means free tier.
 // No schema bump or migration needed (A2). Shape: {code, tier, verifiedAt,

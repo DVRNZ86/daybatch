@@ -12,6 +12,7 @@ let puz,pos,seen,boomed,lives,steps,status,seed,isDaily,dateCur;
 let endless=false,boardsCleared=0; // D1: Endless Crossing (premium)
 let timed=false; // D1: Timed mode (premium)
 let archiveDate=null; // D1: Archive (premium)
+let historyView=false; // B5: viewing a past completed daily read-only (see viewHistoryDate)
 const stopwatch=createStopwatch();
 
 export function gen(sd){
@@ -83,12 +84,12 @@ function cascade(idx){
 }
 function load(sd,daily){
   seed=sd;isDaily=daily;dateCur=localDateKey();puz=gen(sd);pos=null;seen=new Set();boomed=new Set();
-  lives=3;steps=0;status="play";endless=false;timed=false;archiveDate=null;persist();render();
+  lives=3;steps=0;status="play";endless=false;timed=false;archiveDate=null;historyView=false;persist();render();
 }
 // D1: Timed mode (premium) — ephemeral like practice, never touches
 // history/streaks (finish() only records when isDaily, which stays false).
 function startTimed(){
-  seed=Math.floor(Math.random()*1e9);isDaily=false;endless=false;timed=true;archiveDate=null;dateCur=localDateKey();
+  seed=Math.floor(Math.random()*1e9);isDaily=false;endless=false;timed=true;archiveDate=null;historyView=false;dateCur=localDateKey();
   puz=gen(seed);pos=null;seen=new Set();boomed=new Set();lives=3;steps=0;status="play";
   stopwatch.start(ms=>{const el=document.getElementById("cr-timer");if(el)el.textContent=formatMs(ms);});
   render();
@@ -96,14 +97,33 @@ function startTimed(){
 // D1: Archive (premium) — replays any past date's puzzle via the
 // generalized dailySeed(game, date); ephemeral like practice.
 function startArchive(date){
-  seed=dailySeed("crossing",date);isDaily=false;endless=false;timed=false;archiveDate=date;dateCur=localDateKey();
+  seed=dailySeed("crossing",date);isDaily=false;endless=false;timed=false;archiveDate=date;historyView=false;dateCur=localDateKey();
   puz=gen(seed);pos=null;seen=new Set();boomed=new Set();lives=3;steps=0;status="play";render();
+}
+// B5: view a past completed daily exactly as it was left (read-only). Same
+// restore path openDaily() uses for today's snapshot, just historical —
+// finish() only ever persists a terminal status, so this never re-enters an
+// editable board. Falls back to false if the record predates B5 (no
+// snapshot) or the historical seed fails to regenerate.
+export function viewHistoryDate(date,snapshot){
+  if(!snapshot)return false;
+  // B5: may be called before this game's own init ever ran — main.js's
+  // cross-game history mode can land straight on a tab you've never opened.
+  pane=document.getElementById("pane-crossing");
+  seed=dailySeed("crossing",date);isDaily=false;endless=false;timed=false;archiveDate=date;historyView=true;dateCur=localDateKey();
+  puz=gen(seed);
+  if(!puz)return false;
+  pos=snapshot.pos;seen=new Set(snapshot.seen);boomed=new Set(snapshot.boomed);
+  lives=snapshot.lives;steps=snapshot.steps;status=snapshot.status;
+  render();
+  showSlimBar(result());
+  return true;
 }
 // D1: Endless Crossing (premium) — continuous boards on shared lives; only
 // ends when lives hit 0. Ephemeral like practice: never persisted, never
 // touches history/streaks. Only the best run length is saved (storage.js).
 function startEndless(){
-  seed=Math.floor(Math.random()*1e9);isDaily=false;endless=true;dateCur=localDateKey();
+  seed=Math.floor(Math.random()*1e9);isDaily=false;endless=true;historyView=false;dateCur=localDateKey();
   puz=gen(seed);pos=null;seen=new Set();boomed=new Set();
   lives=3;steps=0;boardsCleared=0;status="play";render();
 }
@@ -124,7 +144,7 @@ function openDaily(){
   const sd=dailySeed("crossing");
   const s=getGameState("crossing");
   if(s&&s.date===localDateKey()&&s.seed===sd){
-    seed=s.seed;isDaily=true;endless=false;timed=false;archiveDate=null;dateCur=s.date;puz=gen(seed);pos=s.pos;seen=new Set(s.seen);boomed=new Set(s.boomed);
+    seed=s.seed;isDaily=true;endless=false;timed=false;archiveDate=null;historyView=false;dateCur=s.date;puz=gen(seed);pos=s.pos;seen=new Set(s.seen);boomed=new Set(s.boomed);
     lives=s.lives;steps=s.steps;status=s.status;render();
     if(status!=="play")showSlimBar(result());
     return;
@@ -192,7 +212,10 @@ function result(){
     slimHost:pane.querySelector(".slimhost")};
 }
 function finish(){
-  if(isDaily)addHistory({date:dateCur,game:"crossing",tier:tierFor(status,lives),metrics:{steps,lives,win:status==="win"}});
+  // B5: snapshot is whatever persist() just wrote (always runs right before
+  // finish() on every terminal path) — reused as-is so the history viewer
+  // replays exactly this state.
+  if(isDaily)addHistory({date:dateCur,game:"crossing",tier:tierFor(status,lives),metrics:{steps,lives,win:status==="win"},snapshot:getGameState("crossing")});
   showResult(result());
 }
 function clueColor(n){return n===0?"var(--faded)":n===1?"var(--win)":n===2?"var(--amber)":"var(--bad)";}
@@ -222,13 +245,13 @@ function render(){
       <button class="helpbtn" id="cr-help">?</button>
       <div class="stat big"><div class="lb">LIVES</div><div class="vl">${"❤️".repeat(lives)}${"🖤".repeat(3-lives)}</div></div>
       ${midStat}
-      <div class="stat"><div class="lb">MODE</div><div class="vl" style="color:var(--faded)">${endless?"ENDLESS":timed?"TIMED":archiveDate?"ARCHIVE":isDaily?"DAILY":"PRAC"}</div></div>
+      <div class="stat"><div class="lb">MODE</div><div class="vl" style="color:var(--faded)">${historyView?"HISTORY":endless?"ENDLESS":timed?"TIMED":archiveDate?"ARCHIVE":isDaily?"DAILY":"PRAC"}</div></div>
     </div>
     <div class="board"><div id="cr-grid">${cells}</div></div>
     <div class="btnrow">
       ${isDaily||endless||timed||archiveDate?"":'<button class="btn" id="cr-retry">Retry</button>'}
       <button class="btn${isDaily?"":" pri"}" id="cr-new">New puzzle</button>
-      <button class="btn${isDaily?" pri":""}" id="cr-today">Today's</button>
+      <button class="btn today-btn${isDaily?" pri":""}" id="cr-today">Today's</button>
       ${isPremium()?'<button class="btn" id="cr-endless">♾️ Endless</button><button class="btn" id="cr-timed">⏱ Timed</button><button class="btn" id="cr-archive">📅 Archive</button>':""}
     </div>
     <div class="slimhost"></div>`;

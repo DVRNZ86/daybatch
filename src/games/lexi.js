@@ -17,6 +17,7 @@ let puz,found,hinted,hints,status,isDaily,seq,dragging=false,moved=false,seedCur
 let letterEls,elPrev,wheelEl,centers;
 let timed=false; // D1: Timed mode (premium)
 let archiveDate=null; // D1: Archive (premium)
+let historyView=false; // B5: viewing a past completed daily read-only (see viewHistoryDate)
 const stopwatch=createStopwatch();
 
 export function gen(sd){
@@ -37,7 +38,7 @@ export function gen(sd){
   return null;
 }
 function load(sd,daily){
-  isDaily=daily;timed=false;archiveDate=null;seedCur=sd;dateCur=localDateKey();puz=gen(sd);
+  isDaily=daily;timed=false;archiveDate=null;historyView=false;seedCur=sd;dateCur=localDateKey();puz=gen(sd);
   if(!puz)puz=gen((sd+99991)>>>0);
   found=new Set();hinted=new Set();hints=0;status="play";seq=[];
   build();persist();
@@ -45,7 +46,7 @@ function load(sd,daily){
 // D1: Timed mode (premium) — ephemeral like practice, never touches
 // history/streaks (finish() only records when isDaily, which stays false).
 function startTimed(){
-  isDaily=false;timed=true;archiveDate=null;seedCur=Math.floor(Math.random()*1e9);dateCur=localDateKey();
+  isDaily=false;timed=true;archiveDate=null;historyView=false;seedCur=Math.floor(Math.random()*1e9);dateCur=localDateKey();
   puz=gen(seedCur);
   if(!puz)puz=gen((seedCur+99991)>>>0);
   found=new Set();hinted=new Set();hints=0;status="play";seq=[];
@@ -55,11 +56,31 @@ function startTimed(){
 // D1: Archive (premium) — replays any past date's puzzle via the
 // generalized dailySeed(game, date); ephemeral like practice.
 function startArchive(date){
-  isDaily=false;timed=false;archiveDate=date;seedCur=dailySeed("lexi",date);dateCur=localDateKey();
+  isDaily=false;timed=false;archiveDate=date;historyView=false;seedCur=dailySeed("lexi",date);dateCur=localDateKey();
   puz=gen(seedCur);
   if(!puz)puz=gen((seedCur+99991)>>>0);
   found=new Set();hinted=new Set();hints=0;status="play";seq=[];
   build();
+}
+// B5: view a past completed daily exactly as it was left (read-only). Same
+// restore path openDaily() uses for today's snapshot, just historical —
+// finish() only ever persists a terminal status, so this never re-enters an
+// editable board. Falls back to false if the record predates B5 (no
+// snapshot) or the historical seed fails to regenerate.
+export function viewHistoryDate(date,snapshot){
+  if(!snapshot)return false;
+  // B5: may be called before this game's own init ever ran — main.js's
+  // cross-game history mode can land straight on a tab you've never opened.
+  pane=document.getElementById("pane-lexi");
+  isDaily=false;timed=false;archiveDate=date;historyView=true;seedCur=dailySeed("lexi",date);dateCur=localDateKey();
+  puz=gen(seedCur);
+  if(!puz)puz=gen((seedCur+99991)>>>0);
+  if(!puz)return false;
+  puz.letters=snapshot.letters;
+  found=new Set(snapshot.found);hinted=new Set(snapshot.hinted);hints=snapshot.hints;status=snapshot.status;seq=[];
+  build();
+  showSlimBar(result());
+  return true;
 }
 // B2 persistence: daily games snapshot on every mutation (incl. wheel order);
 // practice is ephemeral.
@@ -73,7 +94,7 @@ function openDaily(){
   const sd=dailySeed("lexi");
   const s=getGameState("lexi");
   if(s&&s.date===localDateKey()&&s.seed===sd){
-    isDaily=true;timed=false;archiveDate=null;seedCur=s.seed;dateCur=s.date;puz=gen(s.seed);
+    isDaily=true;timed=false;archiveDate=null;historyView=false;seedCur=s.seed;dateCur=s.date;puz=gen(s.seed);
     if(!puz)puz=gen((s.seed+99991)>>>0);
     puz.letters=s.letters;
     found=new Set(s.found);hinted=new Set(s.hinted);hints=s.hints;status=s.status;seq=[];
@@ -99,7 +120,7 @@ function build(){
       <div class="stat big"><div class="lb">FOUND</div><div class="vl" style="color:var(--win)" id="lx-found">${found.size}/${puz.targets.length}</div></div>
       <div class="stat"><div class="lb">HINTS</div><div class="vl" id="lx-hints">${hints}</div></div>
       ${timerStat}${dateStat}
-      <div class="stat"><div class="lb">MODE</div><div class="vl" style="color:var(--faded)">${timed?"TIMED":archiveDate?"ARCHIVE":isDaily?"DAILY":"PRAC"}</div></div>
+      <div class="stat"><div class="lb">MODE</div><div class="vl" style="color:var(--faded)">${historyView?"HISTORY":timed?"TIMED":archiveDate?"ARCHIVE":isDaily?"DAILY":"PRAC"}</div></div>
     </div>
     <div class="board" style="padding:8px 6px">
       <div class="lx-slots" id="lx-slots">${slotsHTML()}</div>
@@ -124,7 +145,7 @@ function build(){
     </div>
     <div class="btnrow">
       <button class="btn${isDaily?"":" pri"}" id="lx-new">New puzzle</button>
-      <button class="btn${isDaily?" pri":""}" id="lx-today">Today's</button>
+      <button class="btn today-btn${isDaily?" pri":""}" id="lx-today">Today's</button>
       ${isPremium()?'<button class="btn" id="lx-timed">⏱ Timed</button><button class="btn" id="lx-archive">📅 Archive</button>':""}
     </div>
     <div class="slimhost"></div>`;
@@ -264,7 +285,10 @@ function result(){
     slimHost:pane.querySelector(".slimhost")};
 }
 function finish(){
-  if(isDaily)addHistory({date:dateCur,game:"lexi",tier:tierFor(hints),metrics:{words:puz.targets.length,hints,win:true}});
+  // B5: snapshot is whatever persist() just wrote (always runs right before
+  // finish() on every terminal path) — reused as-is so the history viewer
+  // replays exactly this state.
+  if(isDaily)addHistory({date:dateCur,game:"lexi",tier:tierFor(hints),metrics:{words:puz.targets.length,hints,win:true},snapshot:getGameState("lexi")});
   showResult(result());
 }
 const LX_HELP=`<b>Swipe through the letters</b> and release to submit — or <b>tap letters one by one</b> and press ✓ Check. Every word uses each wheel letter at most once.<br><br>Fill every slot above the wheel — all target words are <b>common English words</b> of 3+ letters made from today's six letters.<br><br><b>🔀 Shuffle</b> rearranges the wheel when you're stuck — it often shakes a word loose. <b>💡 Hint</b> reveals a whole word, but hints count against your rank.<br><br>Retrace your swipe to undo a letter.`;

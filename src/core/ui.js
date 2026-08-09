@@ -2,11 +2,29 @@
 // Ported verbatim from v13. DOM lookups happen in initUI() (called once from
 // main.js) so game modules stay importable in Node for logic tests.
 import { shareText, batchCard, gameLine, puzzleLabel, isPreseason, PRESEASON_NOTE } from "./share.js";
-import { getHistory, localDateKey, getEntitlement, isPremium } from "./storage.js";
+import { getHistory, localDateKey, getEntitlement, isPremium, getHapticsEnabled, setHapticsEnabled, getColorblindMode, setColorblindMode, getBestTime, getCrossingEndlessBest, getOnboardingShown, setOnboardingShown } from "./storage.js";
+import { formatMs } from "./timer.js";
 import { GAMES, dayScore, batchStreak, recordsFor, isPerfectBatch, perfectStreak } from "./streaks.js";
 import { redeemCode, PAYMENT_LINKS, PORTAL_URL } from "./entitlement.js";
 
 export function el(html){const t=document.createElement("template");t.innerHTML=html.trim();return t.content.firstChild;}
+
+// B5: shared placeholder for a game with no record on the date currently
+// being browsed (main.js's cross-game history mode — selecting a date for
+// one game now shows that same date on every tab, not just the one you
+// tapped). Scoped via pane.querySelector, not a page-wide id, since more
+// than one hidden pane can render this at once (one per game with no data
+// that day) and ids must stay unique across the whole document.
+export function renderNotPlayed(pane,dateLabel,onToday){
+  pane.innerHTML=`
+    <div class="stats">
+      <div class="stat big"><div class="lb">DATE</div><div class="vl">${dateLabel}</div></div>
+      <div class="stat"><div class="lb">MODE</div><div class="vl" style="color:var(--faded)">HISTORY</div></div>
+    </div>
+    <div class="board" style="padding:40px 20px;text-align:center;color:var(--faded);font-size:14px">Not played on this date.</div>
+    <div class="btnrow"><button class="btn pri today-btn">Today's</button></div>`;
+  pane.querySelector(".today-btn").onclick=onToday;
+}
 
 // Double-tap/pinch zoom can still trigger on iOS Safari even where
 // touch-action:none is set (a known WebKit quirk on custom drag-gesture
@@ -102,7 +120,7 @@ export function showSlimBar(ctx){
 export function showResult(ctx){ // {win,title,line,share,onAgain,slimHost}
   fillModal(ctx);
   overlay.classList.add("show");
-  if(ctx.win){confetti();try{navigator.vibrate&&navigator.vibrate([35,60,35,60,90]);}catch(e){}}
+  if(ctx.win){confetti();if(getHapticsEnabled()){try{navigator.vibrate&&navigator.vibrate([35,60,35,60,90]);}catch(e){}}}
   showSlimBar(ctx);
   refreshReport(); // B3: a finish may change today's score/streak
 }
@@ -116,8 +134,10 @@ export function refreshPremiumStatus(){
   const statusEl=document.getElementById("h-premium-status");
   const openBtn=document.getElementById("h-premium-open");
   const badge=document.getElementById("hdr-premium");
+  const historyBtn=document.getElementById("hdr-history");
   const premium=isPremium();
   if(badge)badge.classList.toggle("hide",!premium);
+  if(historyBtn)historyBtn.classList.toggle("hide",!premium); // B5: history is premium-gated, same as Timed/Archive
   // The premium overlay flips between its two jobs: selling (buy buttons +
   // code entry) for free users, and showing the owner their code (their key
   // to a second device / new phone — never shown anywhere else) once premium.
@@ -174,6 +194,95 @@ export function openArchive(onPick){
   };
 }
 
+// B5: personal-best records — part of the premium-gated stats screen
+// (PLAN.md B5: "stats screen (history, records)... premium-gated"), so this
+// renders inside the History overlay, not the free Settings overlay.
+const GAME_LABEL={tally:"🧮 Tally",crossing:"🧭 Crossing",sonar:"📡 Sonar",codebreak:"🔐 Codebreak",lexi:"🔤 Lexi"};
+function refreshRecords(){
+  const host=document.getElementById("hi-records");
+  if(!host)return;
+  const lines=[];
+  for(const g of GAMES){
+    const t=getBestTime(g);
+    if(t!==null)lines.push(`<div>${GAME_LABEL[g]} ⏱ ${formatMs(t)}</div>`);
+  }
+  const endless=getCrossingEndlessBest();
+  if(endless>0)lines.push(`<div>🧭 Crossing ♾️ ${endless} board${endless===1?"":"s"}</div>`);
+  host.innerHTML=lines.length?lines.join(""):`<div class="st-empty">No Timed or Endless records yet.</div>`;
+}
+
+// B5: history overlay (premium) — records + ONE date at a time (Darren, 8
+// Aug 2026: a scrolling list of every date would become huge over months —
+// prev/next steps by a single calendar day; tapping the date label opens a
+// native date picker for jumping straight to an arbitrary date, same
+// pattern as openArchive's <input type="date"> above). Tap a game's line to
+// replay its exact end-state board read-only. A record with no snapshot
+// (completed before B5 shipped, or an unknown future schema) renders
+// disabled rather than throwing on a game-view attempt; a date with no
+// record for a game at all renders "not played" the same way.
+let historyov,historyDate,historyOnOpen;
+export function openHistoryOverlay(onOpenGame){
+  refreshRecords();
+  historyOnOpen=onOpenGame;
+  const history=getHistory();
+  const dates=[...new Set(history.map(r=>r.date))].sort();
+  historyDate=dates.length?parseKey(dates[dates.length-1]):new Date();
+  renderHistoryDay();
+  historyov.classList.add("show");
+}
+function parseKey(key){const[y,m,d]=key.split("-").map(Number);return new Date(y,m-1,d);}
+function renderHistoryDay(){
+  const host=document.getElementById("hi-body");
+  const history=getHistory();
+  const dateKey=localDateKey(historyDate);
+  const today=localDateKey();
+  const dateInput=document.getElementById("hi-date-input");
+  dateInput.max=toDateInputValue(new Date());
+  dateInput.value=toDateInputValue(historyDate);
+  document.getElementById("hi-date-score").textContent=dayScore(history,dateKey)+"/100";
+  document.getElementById("hi-next").disabled=dateKey===today;
+  const recs=recordsFor(history,dateKey);
+  const rows=GAMES.map(g=>{
+    const r=recs.find(x=>x.game===g);
+    const has=r&&r.snapshot;
+    return `<button class="hi-game${has?"":" disabled"}" data-game="${g}"${has?"":" disabled"}>${gameLine(g,r||null)}</button>`;
+  }).join("");
+  host.innerHTML=`<div class="hi-day-games">${rows}</div>`;
+  host.querySelectorAll(".hi-game:not(.disabled)").forEach(btn=>{
+    btn.onclick=()=>{
+      const game=btn.dataset.game;
+      const record=history.find(r=>r.game===game&&r.date===dateKey);
+      historyov.classList.remove("show");
+      historyOnOpen(game,dateKey,record.snapshot);
+    };
+  });
+}
+
+// B5: settings — haptics + colour-blind toggles only (free; records moved
+// to the premium History overlay above, per PLAN.md's "stats screen
+// (history, records)... premium-gated"). Colour-blind mode applies as a
+// body class so any game can style off it (Codebreak's verdict tiles are
+// the only current consumer — see codebreak.js).
+export function applyColorblindMode(){
+  document.body.classList.toggle("cb-mode",getColorblindMode());
+}
+let settingsov;
+export function openSettingsOverlay(){
+  document.getElementById("st-haptics").checked=getHapticsEnabled();
+  document.getElementById("st-colorblind").checked=getColorblindMode();
+  settingsov.classList.add("show");
+}
+
+// B5: one-time first-run onboarding — an in-flow banner (same shown-once
+// pattern as the B4 install hint), not a blocking modal: everything below it
+// stays reachable immediately, it just adds one dismissible intro card above
+// the tabs on a genuinely first visit.
+let onboardingEl;
+export function maybeShowOnboarding(){
+  if(getOnboardingShown())return;
+  onboardingEl.classList.remove("hide");
+}
+
 let premiumov;
 
 // D1: post-checkout feedback — opens the premium overlay with a result
@@ -192,6 +301,34 @@ export function initUI(){
   archiveov=document.getElementById("archiveov");
   document.getElementById("ar-close").onclick=()=>archiveov.classList.remove("show");
   archiveov.onclick=(e)=>{if(e.target===archiveov)archiveov.classList.remove("show");};
+  historyov=document.getElementById("historyov");
+  document.getElementById("hi-close").onclick=()=>historyov.classList.remove("show");
+  historyov.onclick=(e)=>{if(e.target===historyov)historyov.classList.remove("show");};
+  document.getElementById("hi-prev").onclick=()=>{
+    historyDate=new Date(historyDate.getFullYear(),historyDate.getMonth(),historyDate.getDate()-1);
+    renderHistoryDay();
+  };
+  document.getElementById("hi-next").onclick=()=>{
+    if(localDateKey(historyDate)===localDateKey())return; // already at today
+    historyDate=new Date(historyDate.getFullYear(),historyDate.getMonth(),historyDate.getDate()+1);
+    renderHistoryDay();
+  };
+  const hiDateInput=document.getElementById("hi-date-input");
+  hiDateInput.onchange=(e)=>{
+    if(!e.target.value)return;
+    const[y,m,d]=e.target.value.split("-").map(Number);
+    historyDate=new Date(y,m-1,d);
+    renderHistoryDay();
+  };
+  settingsov=document.getElementById("settingsov");
+  document.getElementById("h-settings").onclick=()=>{helpov.classList.remove("show");openSettingsOverlay();};
+  document.getElementById("st-close").onclick=()=>settingsov.classList.remove("show");
+  settingsov.onclick=(e)=>{if(e.target===settingsov)settingsov.classList.remove("show");};
+  document.getElementById("st-haptics").onchange=(e)=>setHapticsEnabled(e.target.checked);
+  document.getElementById("st-colorblind").onchange=(e)=>{setColorblindMode(e.target.checked);applyColorblindMode();};
+  onboardingEl=document.getElementById("onboarding");
+  document.getElementById("ob-start").onclick=()=>{setOnboardingShown();onboardingEl.classList.add("hide");};
+  applyColorblindMode();
   document.getElementById("m-close").onclick=()=>overlay.classList.remove("show");
   overlay.onclick=(e)=>{if(e.target===overlay)overlay.classList.remove("show");};
   document.getElementById("m-copy").onclick=async()=>{

@@ -12,6 +12,10 @@ let puz,revealed,status,isDaily;
 let timed=false; // D1: Timed mode (premium)
 let archiveDate=null; // D1: Archive (premium)
 let hintsUsed=0; // D1: Sonar hint (premium) — see tierFor's hint penalty
+let hintCells; // B5: which revealed cells came from a hint vs a manual ping —
+// hintsUsed alone (a count) can't tell the history viewer which specific
+// cells to mark as assisted rather than self-found.
+let historyView=false; // B5: viewing a past completed daily read-only (see viewHistoryDate)
 const stopwatch=createStopwatch();
 
 function tryGen(sd){
@@ -57,11 +61,11 @@ export function gen(sd){
 }
 const SN_HELP=`Three vessels hide in the deep — the fleet shown above the grid (never touching, not even diagonally).<br><br>Every tap is a <b>ping</b>: <b>◉ orange</b> = part of a vessel, <b>· blue</b> = empty water.<br><br><b>Edge numbers</b> count how many vessel cells sit in that row or column — they turn <b>green ✓</b> once you've found them all. Use them to deduce, not guess.<br><br>Find every vessel cell in the fewest pings.`;
 let seed,dateCur;
-function load(sd,daily){seed=sd;isDaily=daily;timed=false;archiveDate=null;hintsUsed=0;dateCur=localDateKey();puz=gen(sd);revealed=new Map();status="play";persist();render();}
+function load(sd,daily){seed=sd;isDaily=daily;timed=false;archiveDate=null;historyView=false;hintsUsed=0;hintCells=new Set();dateCur=localDateKey();puz=gen(sd);revealed=new Map();status="play";persist();render();}
 // D1: Timed mode (premium) — ephemeral like practice, never touches
 // history/streaks (finish() only records when isDaily, which stays false).
 function startTimed(){
-  seed=Math.floor(Math.random()*1e9);isDaily=false;timed=true;archiveDate=null;hintsUsed=0;dateCur=localDateKey();
+  seed=Math.floor(Math.random()*1e9);isDaily=false;timed=true;archiveDate=null;historyView=false;hintsUsed=0;hintCells=new Set();dateCur=localDateKey();
   puz=gen(seed);revealed=new Map();status="play";
   stopwatch.start(ms=>{const el=document.getElementById("sn-timer");if(el)el.textContent=formatMs(ms);});
   render();
@@ -69,14 +73,33 @@ function startTimed(){
 // D1: Archive (premium) — replays any past date's puzzle via the
 // generalized dailySeed(game, date); ephemeral like practice.
 function startArchive(date){
-  seed=dailySeed("sonar",date);isDaily=false;timed=false;archiveDate=date;hintsUsed=0;dateCur=localDateKey();
+  seed=dailySeed("sonar",date);isDaily=false;timed=false;archiveDate=date;historyView=false;hintsUsed=0;hintCells=new Set();dateCur=localDateKey();
   puz=gen(seed);revealed=new Map();status="play";render();
+}
+// B5: view a past completed daily exactly as it was left (read-only). Same
+// restore path openDaily() uses for today's snapshot, just historical —
+// finish() only ever persists a terminal status, so this never re-enters an
+// editable board. Falls back to false if the record predates B5 (no
+// snapshot) or the historical seed fails to regenerate.
+export function viewHistoryDate(date,snapshot){
+  if(!snapshot)return false;
+  // B5: may be called before this game's own init ever ran — main.js's
+  // cross-game history mode can land straight on a tab you've never opened.
+  pane=document.getElementById("pane-sonar");
+  seed=dailySeed("sonar",date);isDaily=false;timed=false;archiveDate=date;historyView=true;
+  hintsUsed=snapshot.hintsUsed||0;hintCells=new Set(snapshot.hintCells||[]);dateCur=localDateKey();
+  puz=gen(seed);
+  if(!puz)return false;
+  revealed=new Map(snapshot.revealed);status=snapshot.status;
+  render();
+  showSlimBar(result());
+  return true;
 }
 function hits(){let n=0;revealed.forEach(v=>{if(v==="hit")n++;});return n;}
 // B2 persistence: daily games snapshot on every mutation; practice is ephemeral.
 function persist(){
   if(!isDaily)return;
-  setGameState("sonar",{date:dateCur,seed,revealed:[...revealed],status,hintsUsed});
+  setGameState("sonar",{date:dateCur,seed,revealed:[...revealed],status,hintsUsed,hintCells:[...hintCells]});
 }
 // Tier per PLAN.md B2 contract: 7 pings→1, ≤9→2, ≤12→3, else→4 (completed).
 // D1 patch (Darren's phone test): a hint always reveals a guaranteed hit, so
@@ -92,7 +115,7 @@ function openDaily(){
   const sd=dailySeed("sonar");
   const s=getGameState("sonar");
   if(s&&s.date===localDateKey()&&s.seed===sd){
-    seed=s.seed;isDaily=true;timed=false;archiveDate=null;hintsUsed=s.hintsUsed||0;dateCur=s.date;puz=gen(seed);revealed=new Map(s.revealed);status=s.status;render();
+    seed=s.seed;isDaily=true;timed=false;archiveDate=null;historyView=false;hintsUsed=s.hintsUsed||0;hintCells=new Set(s.hintCells||[]);dateCur=s.date;puz=gen(seed);revealed=new Map(s.revealed);status=s.status;render();
     if(status!=="play")showSlimBar(result());
     return;
   }
@@ -117,6 +140,7 @@ function hint(){
   const cell=[...puz.occ].find(i=>!revealed.has(i));
   if(cell===undefined)return;
   hintsUsed++;
+  hintCells.add(cell); // B5: remember which cell was assisted, not just the count
   tap(cell);
 }
 function result(){
@@ -141,7 +165,10 @@ function result(){
     slimHost:pane.querySelector(".slimhost")};
 }
 function finish(){
-  if(isDaily)addHistory({date:dateCur,game:"sonar",tier:tierFor(revealed.size,hintsUsed),metrics:{pings:revealed.size,hintsUsed,win:true}});
+  // B5: snapshot is whatever persist() just wrote (this always runs right
+  // after a persist() call on every terminal path) — reused as-is rather
+  // than rebuilt, so the history viewer replays exactly this state.
+  if(isDaily)addHistory({date:dateCur,game:"sonar",tier:tierFor(revealed.size,hintsUsed),metrics:{pings:revealed.size,hintsUsed,win:true},snapshot:getGameState("sonar")});
   showResult(result());
 }
 function render(){
@@ -156,7 +183,8 @@ function render(){
     for(let c=0;c<SN;c++){
       const i=r*SN+c,st=revealed.get(i);
       const showShip=status!=="play"&&puz.occ.has(i)&&!st;
-      grid+=`<button data-i="${i}" class="${st==="hit"?"hit":st==="miss"?"miss":showShip?"ship":""}">${st==="hit"?"◉":st==="miss"?"·":""}</button>`;
+      const wasHint=st==="hit"&&hintCells.has(i); // B5: chosen vs hinted
+      grid+=`<button data-i="${i}" class="${st==="hit"?"hit":st==="miss"?"miss":showShip?"ship":""}${wasHint?" hint":""}">${st==="hit"?"◉":st==="miss"?"·":""}</button>`;
     }
     grid+="</div>";
   }
@@ -168,7 +196,7 @@ function render(){
       <div class="stat big"><div class="lb">PINGS</div><div class="vl" style="color:var(--marker)">${revealed.size}</div></div>
       <div class="stat big"><div class="lb">FOUND</div><div class="vl" style="color:var(--win)">${hits()}/${puz.total}</div></div>
       ${timerStat}${dateStat}
-      <div class="stat"><div class="lb">MODE</div><div class="vl" style="color:var(--faded)">${archiveDate?"ARCHIVE":timed?"TIMED":isDaily?"DAILY":"PRAC"}</div></div>
+      <div class="stat"><div class="lb">MODE</div><div class="vl" style="color:var(--faded)">${historyView?"HISTORY":archiveDate?"ARCHIVE":timed?"TIMED":isDaily?"DAILY":"PRAC"}</div></div>
     </div>
     <div class="board" style="padding:6px">
       <div class="fleet">
@@ -181,7 +209,7 @@ function render(){
     </div>
     <div class="btnrow">
       <button class="btn${isDaily?"":" pri"}" id="sn-new">New puzzle</button>
-      <button class="btn${isDaily?" pri":""}" id="sn-today">Today's</button>
+      <button class="btn today-btn${isDaily?" pri":""}" id="sn-today">Today's</button>
       ${isPremium()?'<button class="btn" id="sn-timed">⏱ Timed</button><button class="btn" id="sn-hint"'+(hintsUsed>=MAX_HINTS?" disabled":"")+'>💡 Hint'+(hintsUsed>0?" ("+(MAX_HINTS-hintsUsed)+" left)":"")+'</button><button class="btn" id="sn-archive">📅 Archive</button>':""}
     </div>
     <div class="slimhost"></div>`;

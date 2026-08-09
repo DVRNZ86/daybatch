@@ -1,15 +1,18 @@
 // Boot + tab router + lazy init. Ported verbatim from v13; the only change is
 // that game init functions live in modules and UI wiring happens via initUI().
-import { initUI, refreshReport, refreshPremiumStatus, showPremiumResult } from "./core/ui.js";
-import { getLastSeenDate, setLastSeenDate, localDateKey, getInstallHintShown, setInstallHintShown } from "./core/storage.js";
+import { initUI, refreshReport, refreshPremiumStatus, showPremiumResult, openHistoryOverlay, maybeShowOnboarding, renderNotPlayed } from "./core/ui.js";
+import { getLastSeenDate, setLastSeenDate, localDateKey, getInstallHintShown, setInstallHintShown, getHistory } from "./core/storage.js";
 import { claimSession, maybeReverify } from "./core/entitlement.js";
-import { initTally } from "./games/tally.js";
-import { initCrossing } from "./games/crossing.js";
-import { initSonar } from "./games/sonar.js";
-import { initCodebreak } from "./games/codebreak.js";
-import { initLexi } from "./games/lexi.js";
+import { initTally, viewHistoryDate as viewHistoryTally } from "./games/tally.js";
+import { initCrossing, viewHistoryDate as viewHistoryCrossing } from "./games/crossing.js";
+import { initSonar, viewHistoryDate as viewHistorySonar } from "./games/sonar.js";
+import { initCodebreak, viewHistoryDate as viewHistoryCodebreak } from "./games/codebreak.js";
+import { initLexi, viewHistoryDate as viewHistoryLexi } from "./games/lexi.js";
 
 initUI();
+
+// B5: one-screen first-run onboarding — shown once, before anything else.
+maybeShowOnboarding();
 
 // D1: post-checkout auto-claim. Stripe's Payment Links redirect back to
 // "/?session_id=cs_..."; exchange it for a code and redeem in one step, then
@@ -43,16 +46,58 @@ window.addEventListener("beforeinstallprompt", (e) => {
 
 // tabs + lazy init (heavy generators must not block first paint)
 const INIT={tally:initTally,crossing:initCrossing,sonar:initSonar,codebreak:initCodebreak,lexi:initLexi},DONE={};
+const VIEW_HISTORY={tally:viewHistoryTally,crossing:viewHistoryCrossing,sonar:viewHistorySonar,codebreak:viewHistoryCodebreak,lexi:viewHistoryLexi};
+
+// B5: cross-game history browsing. Selecting a date for one game (via the
+// History overlay) now puts EVERY tab in "viewing this date" mode, not just
+// the one tapped — switching tabs while browsing shows that same date's
+// result for whichever game you land on (or "Not played on this date" if it
+// has no record), until any Today's button is pressed, which drops back to
+// live for every tab. null = normal live browsing, the default.
+let historyModeDate=null;
+function exitHistoryMode(){ historyModeDate=null; }
+// Every game's own "Today's" button already reverts THAT tab correctly
+// (openDaily() is what it always called); this only needs to also clear the
+// shared flag so OTHER tabs stop re-entering history mode on their next
+// visit. Delegated + class-matched rather than one listener per game.
+document.addEventListener("click",e=>{ if(e.target.closest(".today-btn"))exitHistoryMode(); });
+
 function ensureInit(t){ if(!DONE[t]&&INIT[t]){ DONE[t]=1; try{INIT[t]();}catch(e){} } }
+function switchTab(tab){
+  document.querySelectorAll(".tabs button").forEach(x=>x.classList.toggle("on",x.dataset.tab===tab));
+  ["tally","crossing","sonar","codebreak","lexi"].forEach(t=>{
+    document.getElementById("pane-"+t).classList.toggle("hide",t!==tab);
+  });
+  if(historyModeDate){
+    DONE[tab]=1; // this tab's content is about to be fully replaced either way
+    const dateKey=localDateKey(historyModeDate);
+    const record=getHistory().find(r=>r.game===tab&&r.date===dateKey);
+    if(record&&record.snapshot)VIEW_HISTORY[tab](historyModeDate,record.snapshot);
+    else renderNotPlayed(document.getElementById("pane-"+tab),dateKey,()=>{exitHistoryMode();INIT[tab]();});
+    return;
+  }
+  if(!DONE[tab]){ ensureInit(tab); return; }
+  // Already initialized and back to live browsing: re-run openDaily(), which
+  // is always safe here — it restores from the persisted snapshot when one
+  // matches today (B2), so this never discards an in-progress live game; it
+  // only matters the one time we're resuming a tab that was just showing a
+  // historical date.
+  INIT[tab]();
+}
 document.querySelectorAll(".tabs button").forEach(b=>{
-  b.onclick=()=>{
-    document.querySelectorAll(".tabs button").forEach(x=>x.classList.toggle("on",x===b));
-    ["tally","crossing","sonar","codebreak","lexi"].forEach(t=>{
-      document.getElementById("pane-"+t).classList.toggle("hide",t!==b.dataset.tab);
-    });
-    ensureInit(b.dataset.tab);
-  };
+  b.onclick=()=>switchTab(b.dataset.tab);
 });
+
+// B5: history overlay — set the shared browsing date, then switchTab does
+// the rest (including for the very game+date row that was tapped, so the
+// lookup logic lives in exactly one place).
+document.getElementById("hdr-history").onclick=()=>{
+  openHistoryOverlay((game,dateKey)=>{
+    const [y,m,d]=dateKey.split("-").map(Number);
+    historyModeDate=new Date(y,m-1,d);
+    switchTab(game);
+  });
+};
 
 // B2 rollover watcher: when the app comes back into view on a new device-local
 // day, offer fresh dailies via the banner — never silently reset a live game.
