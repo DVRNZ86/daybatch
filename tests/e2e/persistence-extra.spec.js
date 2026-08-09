@@ -265,3 +265,58 @@ test("Lexi: practice hints and shuffles never overwrite the daily snapshot", asy
   expect(await page.locator(".lx-letter").allTextContents()).toEqual(dailyWheel);
   expect(errors).toEqual([]);
 });
+
+// B6 regression: targets must be honored from persisted state, never re-derived from a live
+// gen(seed) call, so a future dictionary change can never retroactively corrupt an in-progress
+// or historical Lexi puzzle. Simulated here by saving a target list gen() would NOT itself
+// produce for this seed right now (a stand-in for "the dictionary changed after this was saved").
+test("Lexi: reload honors the persisted target list, not a fresh regeneration", async ({ page }) => {
+  const errors = trackErrors(page);
+  await pinDate(page);
+  const puz = genLexi(hashString("lexi-" + DATE_KEY));
+  const fakeTargets = puz.targets.slice(0, 7); // fewer than the real puzzle's target count
+  await page.addInitScript(({ seed, dateKey, letters, targets }) => {
+    localStorage.setItem("daybatch:v1", JSON.stringify({
+      schema: 1, lastSeenDate: null, history: [],
+      games: { lexi: { date: dateKey, seed, letters, targets, found: [], hinted: [], hints: 0, bonus: [], status: "play" } }
+    }));
+  }, { seed: hashString("lexi-" + DATE_KEY), dateKey: DATE_KEY, letters: puz.letters, targets: fakeTargets });
+
+  await page.goto("/");
+  await openTab(page, "lexi");
+  await expect(page.locator("#lx-found")).toHaveText(`0/${fakeTargets.length}`);
+  expect(await page.locator("#lx-slots .lx-word").count()).toBe(fakeTargets.length);
+  expect(errors).toEqual([]);
+});
+
+// B6: spelling a legitimate word that isn't one of today's targets earns bonus
+// credit — tracked separately, never touching found/targets/tier/score.
+test("Lexi: a legitimate non-target word earns bonus credit without affecting FOUND or tier", async ({ page }) => {
+  const errors = trackErrors(page);
+  await pinDate(page);
+  const puz = genLexi(hashString("lexi-" + DATE_KEY));
+  const N = puz.targets.length;
+  const bonusWord = "rebar"; // formable from this pinned date's wheel, not among its targets
+
+  await page.goto("/");
+  await openTab(page, "lexi");
+  await expect(page.locator("#lx-bonus")).toHaveText("0");
+
+  for (const i of indicesFor(bonusWord, puz.letters)) await page.locator(`.lx-letter[data-i="${i}"]`).click();
+  await page.locator("#lx-check").click();
+
+  await expect(page.locator("#lx-bonus")).toHaveText("1");
+  await expect(page.locator("#lx-found")).toHaveText(`0/${N}`); // unaffected — not a target
+  await expect(page.locator("#lx-preview")).toContainText("bonus");
+
+  // submitting the same bonus word again doesn't double-count
+  for (const i of indicesFor(bonusWord, puz.letters)) await page.locator(`.lx-letter[data-i="${i}"]`).click();
+  await page.locator("#lx-check").click();
+  await expect(page.locator("#lx-bonus")).toHaveText("1");
+
+  // survives reload
+  await page.reload();
+  await openTab(page, "lexi");
+  await expect(page.locator("#lx-bonus")).toHaveText("1");
+  expect(errors).toEqual([]);
+});

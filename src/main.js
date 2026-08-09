@@ -1,8 +1,9 @@
 // Boot + tab router + lazy init. Ported verbatim from v13; the only change is
 // that game init functions live in modules and UI wiring happens via initUI().
 import { initUI, refreshReport, refreshPremiumStatus, showPremiumResult, openHistoryOverlay, maybeShowOnboarding, renderNotPlayed } from "./core/ui.js";
-import { getLastSeenDate, setLastSeenDate, localDateKey, getInstallHintShown, setInstallHintShown, getHistory } from "./core/storage.js";
+import { getLastSeenDate, setLastSeenDate, localDateKey, getInstallHintShown, setInstallHintShown, getHistory, getOnboardingShown } from "./core/storage.js";
 import { claimSession, maybeReverify } from "./core/entitlement.js";
+import { initAnalytics, hasConsentDecision, acceptConsent, declineConsent, trackEvent } from "./core/analytics.js";
 import { initTally, viewHistoryDate as viewHistoryTally } from "./games/tally.js";
 import { initCrossing, viewHistoryDate as viewHistoryCrossing } from "./games/crossing.js";
 import { initSonar, viewHistoryDate as viewHistorySonar } from "./games/sonar.js";
@@ -13,6 +14,22 @@ initUI();
 
 // B5: one-screen first-run onboarding — shown once, before anything else.
 maybeShowOnboarding();
+
+// B6: usage analytics — GA4 loads immediately if consent was already given in
+// an earlier session; otherwise the banner below asks once, first visit only.
+// Sequenced (not stacked) with onboarding: a genuinely first-ever visit shows
+// onboarding first, then the consent banner once that's dismissed — three
+// simultaneous banners (onboarding/install-hint/consent) can push a game's
+// controls (e.g. Lexi's Check button) below the fold on small screens.
+initAnalytics();
+const consentEl=document.getElementById("analytics-consent");
+function maybeShowConsentBanner(){
+  if(!hasConsentDecision())consentEl.classList.remove("hide");
+}
+if(getOnboardingShown())maybeShowConsentBanner(); // returning user: onboarding won't show, safe immediately
+document.addEventListener("daybatch:onboarding-dismissed",maybeShowConsentBanner); // first-time: wait for onboarding to clear
+document.getElementById("ac-accept").onclick=()=>{acceptConsent();consentEl.classList.add("hide");};
+document.getElementById("ac-decline").onclick=()=>{declineConsent();consentEl.classList.add("hide");};
 
 // D1: post-checkout auto-claim. Stripe's Payment Links redirect back to
 // "/?session_id=cs_..."; exchange it for a code and redeem in one step, then
@@ -62,7 +79,7 @@ function exitHistoryMode(){ historyModeDate=null; }
 // visit. Delegated + class-matched rather than one listener per game.
 document.addEventListener("click",e=>{ if(e.target.closest(".today-btn"))exitHistoryMode(); });
 
-function ensureInit(t){ if(!DONE[t]&&INIT[t]){ DONE[t]=1; try{INIT[t]();}catch(e){} } }
+function ensureInit(t){ if(!DONE[t]&&INIT[t]){ DONE[t]=1; trackEvent("game_open",{game:t}); try{INIT[t]();}catch(e){} } }
 function switchTab(tab){
   document.querySelectorAll(".tabs button").forEach(x=>x.classList.toggle("on",x.dataset.tab===tab));
   ["tally","crossing","sonar","codebreak","lexi"].forEach(t=>{

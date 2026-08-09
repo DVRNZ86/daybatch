@@ -5,6 +5,7 @@ import { showResult, showHelp, showSlimBar, openArchive } from "../core/ui.js";
 import { getGameState, setGameState, addHistory, localDateKey, isPremium, getBestTime, setBestTime } from "../core/storage.js";
 import { createStopwatch, formatMs } from "../core/timer.js";
 import { SITE_URL } from "../core/share.js";
+import { trackEvent } from "../core/analytics.js";
 
 const SYMS=[["tri","#E4572E"],["cir","#2E86FF"],["sq","#0FB360"],["dia","#8B5CF6"],["star","#F5A800"],["pen","#E5484D"],["plus","#0FA3A3"]];
 const LEN=5,MAXG=8;
@@ -181,7 +182,9 @@ function finish(){
     // B5: snapshot is whatever persist() just wrote (always runs right
     // before finish() on every terminal path) — reused as-is so the
     // history viewer replays exactly this state.
-    addHistory({date:dateCur,game:"codebreak",tier:tierFor(status,guesses.length+hintedSlots.size),metrics,snapshot:getGameState("codebreak")});
+    const tier=tierFor(status,guesses.length+hintedSlots.size);
+    addHistory({date:dateCur,game:"codebreak",tier,metrics,snapshot:getGameState("codebreak")});
+    trackEvent("game_complete",{game:"codebreak",tier}); // B6
   }
   showResult(result());
 }

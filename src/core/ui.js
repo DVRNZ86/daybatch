@@ -6,6 +6,7 @@ import { getHistory, localDateKey, getEntitlement, isPremium, getHapticsEnabled,
 import { formatMs } from "./timer.js";
 import { GAMES, dayScore, batchStreak, recordsFor, isPerfectBatch, perfectStreak } from "./streaks.js";
 import { redeemCode, PAYMENT_LINKS, PORTAL_URL } from "./entitlement.js";
+import { trackEvent, getConsent, setConsent } from "./analytics.js";
 
 export function el(html){const t=document.createElement("template");t.innerHTML=html.trim();return t.content.firstChild;}
 
@@ -77,6 +78,7 @@ export function refreshReport(){
   document.getElementById("rp-share").onclick=async()=>{
     const r=await shareText(batchCard(history,today));
     if(r==="failed")return;
+    trackEvent("share_click",{surface:"batch"}); // B6
     const b=document.getElementById("rp-share");
     b.textContent=r==="shared"?"Shared ✓":"Copied ✓";
     setTimeout(()=>{const bb=document.getElementById("rp-share");if(bb)bb.textContent="Share batch";},1600);
@@ -270,6 +272,7 @@ let settingsov;
 export function openSettingsOverlay(){
   document.getElementById("st-haptics").checked=getHapticsEnabled();
   document.getElementById("st-colorblind").checked=getColorblindMode();
+  document.getElementById("st-analytics").checked=getConsent()===true; // B6: undecided/declined both render unchecked
   settingsov.classList.add("show");
 }
 
@@ -326,8 +329,12 @@ export function initUI(){
   settingsov.onclick=(e)=>{if(e.target===settingsov)settingsov.classList.remove("show");};
   document.getElementById("st-haptics").onchange=(e)=>setHapticsEnabled(e.target.checked);
   document.getElementById("st-colorblind").onchange=(e)=>{setColorblindMode(e.target.checked);applyColorblindMode();};
+  document.getElementById("st-analytics").onchange=(e)=>setConsent(e.target.checked); // B6
   onboardingEl=document.getElementById("onboarding");
-  document.getElementById("ob-start").onclick=()=>{setOnboardingShown();onboardingEl.classList.add("hide");};
+  document.getElementById("ob-start").onclick=()=>{
+    setOnboardingShown();onboardingEl.classList.add("hide");
+    document.dispatchEvent(new Event("daybatch:onboarding-dismissed")); // B6: let main.js sequence the consent banner in after this, not stacked on top
+  };
   applyColorblindMode();
   document.getElementById("m-close").onclick=()=>overlay.classList.remove("show");
   overlay.onclick=(e)=>{if(e.target===overlay)overlay.classList.remove("show");};
@@ -335,6 +342,8 @@ export function initUI(){
     // B3: Web Share (with url field) on supporting devices, clipboard otherwise.
     const r=await shareText(modalCtx.share);
     if(r==="failed")return;
+    const activeTab=document.querySelector(".tabs button.on");
+    trackEvent("share_click",{surface:"game",game:activeTab?activeTab.dataset.tab:"unknown"}); // B6
     document.getElementById("m-copy").textContent=r==="shared"?"Shared ✓":"Copied ✓";
     setTimeout(()=>{document.getElementById("m-copy").textContent="Share";},1600);
   };

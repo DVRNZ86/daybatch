@@ -136,6 +136,16 @@ export function setColorblindMode(on) {
   saveRoot();
 }
 
+// ---- B6: analytics consent ----
+// Optional additive field, three states: undefined/null = undecided (consent
+// banner shows), true = accepted (GA4 loads), false = declined (GA4 never
+// loads until changed later in Settings). No schema bump needed.
+export function getAnalyticsConsent() { const v = loadRoot().analyticsConsent; return v === undefined ? null : v; }
+export function setAnalyticsConsent(v) {
+  loadRoot().analyticsConsent = v;
+  saveRoot();
+}
+
 // ---- D1: premium entitlement ----
 // Optional additive field on the schema-1 root; absent/null means free tier.
 // No schema bump or migration needed (A2). Shape: {code, tier, verifiedAt,
