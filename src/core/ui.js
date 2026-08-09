@@ -219,7 +219,9 @@ function renderHistoryDay(){
   const history=getHistory();
   const dateKey=localDateKey(historyDate);
   const today=localDateKey();
-  document.getElementById("hi-date-text").textContent=dateKey;
+  const dateInput=document.getElementById("hi-date-input");
+  dateInput.max=toDateInputValue(new Date());
+  dateInput.value=toDateInputValue(historyDate);
   document.getElementById("hi-date-score").textContent=dayScore(history,dateKey)+"/100";
   document.getElementById("hi-next").disabled=dateKey===today;
   const recs=recordsFor(history,dateKey);
@@ -295,11 +297,6 @@ export function initUI(){
     renderHistoryDay();
   };
   const hiDateInput=document.getElementById("hi-date-input");
-  document.getElementById("hi-daylabel").onclick=()=>{
-    hiDateInput.max=toDateInputValue(new Date());
-    hiDateInput.value=toDateInputValue(historyDate);
-    if(hiDateInput.showPicker)hiDateInput.showPicker(); else hiDateInput.focus();
-  };
   hiDateInput.onchange=(e)=>{
     if(!e.target.value)return;
     const[y,m,d]=e.target.value.split("-").map(Number);

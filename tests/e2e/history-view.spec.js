@@ -17,6 +17,10 @@ const HKEY = "2026-1-1";
 const PREV_KEY = "2025-12-31"; // the calendar day immediately before HDATE
 const TODAY_KEY = "2026-1-3"; // pinned "today" — 2 days after HKEY, so the Next-disables test is a couple of clicks, not hundreds
 
+// #hi-date-input is a real <input type="date"> — its .value is always the
+// padded ISO form (YYYY-MM-DD), unlike the app's own unpadded "Y-M-D" keys.
+function iso(key) { const [y, m, d] = key.split("-"); return `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`; }
+
 async function pinDate(page) {
   await page.addInitScript(() => {
     const RealDate = Date;
@@ -81,7 +85,7 @@ test("History overlay defaults to the most recent date with a record, showing it
   await page.locator("#hdr-history").click();
   await expect(page.locator("#historyov.show")).toBeVisible();
 
-  await expect(page.locator("#hi-date-text")).toHaveText(HKEY);
+  await expect(page.locator("#hi-date-input")).toHaveValue(iso(HKEY));
   await expect(page.locator("#hi-date-score")).toContainText("/100");
   const rows = page.locator(".hi-game");
   await expect(rows).toHaveCount(5);
@@ -97,10 +101,10 @@ test("Prev steps back a calendar day, shows a pre-B5 record (no snapshot) as dis
 
   // pinned "today" is TODAY_KEY, 2 days after HKEY — History defaults to the
   // most recent date WITH A RECORD (HKEY), not necessarily today itself
-  await expect(page.locator("#hi-date-text")).toHaveText(HKEY);
+  await expect(page.locator("#hi-date-input")).toHaveValue(iso(HKEY));
 
   await page.locator("#hi-prev").click();
-  await expect(page.locator("#hi-date-text")).toHaveText(PREV_KEY);
+  await expect(page.locator("#hi-date-input")).toHaveValue(iso(PREV_KEY));
   const sonarRow = page.locator('.hi-game[data-game="sonar"]');
   await expect(sonarRow).toHaveClass(/disabled/);
   await expect(sonarRow).toHaveAttribute("disabled", "");
@@ -109,26 +113,31 @@ test("Prev steps back a calendar day, shows a pre-B5 record (no snapshot) as dis
   await expect(page.locator(".hi-game").filter({ hasText: "not played" })).toHaveCount(4);
 
   await page.locator("#hi-next").click();
-  await expect(page.locator("#hi-date-text")).toHaveText(HKEY);
+  await expect(page.locator("#hi-date-input")).toHaveValue(iso(HKEY));
   await expect(page.locator("#hi-next")).toBeEnabled(); // HKEY isn't today yet
 
   await page.locator("#hi-next").click(); // -> 2026-1-2, still not today
   await expect(page.locator("#hi-next")).toBeEnabled();
   await page.locator("#hi-next").click(); // -> TODAY_KEY
-  await expect(page.locator("#hi-date-text")).toHaveText(TODAY_KEY);
+  await expect(page.locator("#hi-date-input")).toHaveValue(iso(TODAY_KEY));
   await expect(page.locator("#hi-next")).toBeDisabled();
 });
 
-test("Tapping the date label opens a native date picker that jumps straight to the chosen date", async ({ page }) => {
+test("Picking a date directly on the native date input jumps straight to the chosen date", async ({ page }) => {
+  // B5 fix (Darren's phone test): the picker used to be a proxy button
+  // calling input.showPicker()/.focus() on a hidden input — unreliable on
+  // iOS Safari. #hi-date-input is now the real, directly-tappable control
+  // (wrapped in a <label>, same pattern openArchive's #ar-date already
+  // uses), so this only needs to exercise its change handler directly.
   await seedPremiumWithHistory(page);
   await page.goto("/");
   await page.locator("#hdr-history").click();
-  await page.locator("#hi-daylabel").click();
 
   const input = page.locator("#hi-date-input");
-  await input.fill(PREV_KEY.split("-").map((n, i) => i === 0 ? n : n.padStart(2, "0")).join("-"));
+  await expect(input).toBeVisible();
+  await input.fill(iso(PREV_KEY));
   await input.dispatchEvent("change");
-  await expect(page.locator("#hi-date-text")).toHaveText(PREV_KEY);
+  await expect(page.locator("#hi-date-input")).toHaveValue(iso(PREV_KEY));
 });
 
 test("Tapping a game row switches tab and replays the exact snapshot, read-only", async ({ page }) => {
