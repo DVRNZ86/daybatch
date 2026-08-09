@@ -1,9 +1,10 @@
 // analytics.js: consent state round-trips through storage (B6). GA/Cloudflare
 // injection itself needs a DOM and is covered in e2e (settings-onboarding.spec.js,
-// consent-banner behaviour); these are the pure/Node-safe parts — with the real
-// GA_MEASUREMENT_ID/CF_BEACON_TOKEN both left as TODO placeholders, injectGA()/
-// injectCF() short-circuit before ever touching `document`, so this module is
-// safely importable and callable in a plain Node test (no jsdom needed).
+// consent-banner behaviour); these are the pure/Node-safe parts — injectGA()/
+// injectCF() explicitly guard on `typeof document === "undefined"` (and
+// trackEvent() on `typeof window === "undefined"`) so this module stays safely
+// importable and callable in a plain Node test even with a real Measurement
+// ID/token configured (no jsdom needed).
 import test from "node:test";
 import assert from "node:assert/strict";
 
@@ -47,7 +48,7 @@ test("setConsent(true/false) is equivalent to accept/decline", () => {
   assert.equal(A.getConsent(), false);
 });
 
-test("initAnalytics/acceptConsent/declineConsent never throw without a DOM (placeholder GA/CF IDs short-circuit before touching document)", () => {
+test("initAnalytics/acceptConsent/declineConsent never throw without a DOM (explicit typeof document guard)", () => {
   fresh();
   assert.doesNotThrow(() => A.initAnalytics());
   assert.doesNotThrow(() => A.acceptConsent());

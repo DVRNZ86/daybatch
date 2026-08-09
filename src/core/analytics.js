@@ -12,9 +12,8 @@
 // setting, not code) — the main source of legal exposure, per the B6 decision.
 import { getAnalyticsConsent, setAnalyticsConsent } from "./storage.js";
 
-// TODO(Darren): replace with the real GA4 Measurement ID (Admin → Data Streams
-// → your web stream → Measurement ID, looks like "G-XXXXXXXXXX") before launch.
-const GA_MEASUREMENT_ID = "G-XXXXXXXXXX";
+// Real GA4 Measurement ID (daybatch.app web stream, set up 9 Aug 2026).
+const GA_MEASUREMENT_ID = "G-8SB046CWRZ";
 
 // TODO(Darren): replace with the real Cloudflare Web Analytics token (Cloudflare
 // dashboard → Web Analytics → add daybatch.app as a site → copy the token) before
@@ -26,6 +25,7 @@ let gaLoaded = false;
 
 function injectCF() {
   if (!CF_BEACON_TOKEN || CF_BEACON_TOKEN.startsWith("REPLACE_")) return;
+  if (typeof document === "undefined") return; // no DOM (e.g. a Node test) — nothing to inject into
   const s = document.createElement("script");
   s.defer = true;
   s.src = "https://static.cloudflareinsights.com/beacon.min.js";
@@ -35,6 +35,7 @@ function injectCF() {
 
 function injectGA() {
   if (gaLoaded || !GA_MEASUREMENT_ID || GA_MEASUREMENT_ID.includes("XXXX")) return;
+  if (typeof document === "undefined") return; // no DOM (e.g. a Node test) — nothing to inject into
   gaLoaded = true;
   const s = document.createElement("script");
   s.async = true;
@@ -79,6 +80,6 @@ export function setConsent(on) {
 // No-ops safely whenever GA isn't loaded (declined/undecided/no ID yet) — call
 // sites stay simple, no need to check consent state at every call site.
 export function trackEvent(name, params = {}) {
-  if (!gaLoaded || typeof window.gtag !== "function") return;
+  if (!gaLoaded || typeof window === "undefined" || typeof window.gtag !== "function") return;
   window.gtag("event", name, params);
 }
