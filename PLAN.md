@@ -144,6 +144,20 @@ Manifest, icons, standalone display, theme colour; service worker cache-first sh
 One-screen onboarding ("Five puzzles. Every day. That's it."); **stats screen (history, records) and yesterday's solutions are premium-gated (see D1) — build against the real entitlement flag, not a placeholder, since D1 now ships first**; settings (haptics, colour-blind check); footer version + social handles.
 **Accept:** first-run flow tested; stats reconcile with stored history; gated screens correctly locked for free users and unlocked for premium; no breakage at 320px width.
 
+### B6 — Lexi dictionary depth + usage analytics (built after B5/D1 shipped; decided with Darren 9 Aug 2026)
+
+**Part 1 — Lexi dictionary.** Both levers from IDEAS.md's "Lexi dictionary gaps + bonus words" entry, approved together:
+1. **Expand the curated target-word list** so more of the 6-letter dictionary qualifies as puzzle-eligible (currently 222 of 430 words qualify for 7–16 targets) — more unique dailies before repeats become likely.
+2. **Broader validation dictionary + bonus-words counter.** Any legitimate English word the player spins that isn't one of the day's targets is now accepted and credited via a separate "Bonus words" counter (Wordscapes convention), instead of shaking red with no credit. The day's curated target list still drives what counts toward completion/tier; the bonus dictionary only adds recognition, never changes win condition or tier math. US-spelling gaps found in playtest ("teen"/"centre" rejected) should resolve as a side effect of using a broader list.
+**Accept:** curated target list demonstrably larger (count documented); a non-target real word now shows bonus credit instead of a plain reject; bonus count is per-game, resets daily like everything else, has no effect on tier/score; seed-identity holds (target-list/generation changes are the only intentional v13 deviation here, same class as the B1 Lexi shuffle-counter fix).
+
+**Part 2 — Usage analytics.** GA4 primary, Cloudflare Web Analytics as an ungated secondary/backup — both decided with Darren 9 Aug 2026:
+- **GA4** (`gtag.js`, `Measurement ID` in `index.html`): tracks daily usage, per-game opens, per-game completions (with tier), share-card clicks. No PII in any event — game name/tier only, never a code, email, or Stripe identifier. **Google Signals / ads personalization turned off** in the GA4 property (removes the ad-data-sharing use case, the main source of legal exposure). GA4's default IP anonymization applies.
+- **Consent gate, built now while traffic is still near-zero, not bolted on after real users exist:** a one-time dismissible banner (same UI pattern as the existing onboarding/install-hint/rollover banners, not a blocking modal) — "This app uses analytics to understand usage. OK / Decline." GA's script does not load until accepted; declining persists (same additive-root-field pattern as `getOnboardingShown()`) and blocks the GA beacon on every future visit until changed in Settings.
+- **Cloudflare Web Analytics**: cookieless beacon, no consent gate needed (no persistent identifier), added to both `daybatch.app` and (later, once it exists) `daybatch.com` as a redundancy check against GA's numbers — zero new vendor, same Cloudflare account already hosting the Worker.
+- **Events tracked (both tools where applicable):** `page_view` (automatic), `game_open {game}`, `game_complete {game, tier}`, `share_click {game}`. No new Worker endpoint needed — both tools are client-side beacons, no server-side event relay.
+**Accept:** GA dashboard shows real events after a manual smoke-test session (page_view, game_open, game_complete, share_click all visible with correct params); consent banner blocks the GA script pre-accept, verified via network request check; declining persists across reload; Cloudflare Web Analytics live on `daybatch.app` needing no consent UI; zero PII in any event payload; no new npm dependency (both are script-tag/beacon integrations, consistent with A1).
+
 ---
 
 ## Stage D
