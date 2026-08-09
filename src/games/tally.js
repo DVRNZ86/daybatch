@@ -107,6 +107,9 @@ function startArchive(date){
 // snapshot) or the historical seed fails to regenerate.
 export function viewHistoryDate(date,snapshot){
   if(!snapshot)return false;
+  // B5: may be called before this game's own init ever ran — main.js's
+  // cross-game history mode can land straight on a tab you've never opened.
+  pane=document.getElementById("pane-tally");
   isDaily=false;timed=false;archiveDate=date;seedCur=dailySeed("tally",date);dateCur=localDateKey();
   puz=gen(seedCur);
   if(!puz)puz=gen((seedCur+99991)>>>0);
@@ -169,7 +172,7 @@ function buildDOM(){
     <div class="btnrow">
       <button class="btn" id="ty-clear">Clear path</button>
       <button class="btn${isDaily?"":" pri"}" id="ty-new">New puzzle</button>
-      <button class="btn${isDaily?" pri":""}" id="ty-today">Today's</button>
+      <button class="btn today-btn${isDaily?" pri":""}" id="ty-today">Today's</button>
       ${isPremium()?'<button class="btn" id="ty-timed">⏱ Timed</button><button class="btn" id="ty-archive">📅 Archive</button>':""}
     </div>
     <div class="slimhost"></div>`;

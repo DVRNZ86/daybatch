@@ -107,6 +107,9 @@ function startArchive(date){
 // snapshot) or the historical seed fails to regenerate.
 export function viewHistoryDate(date,snapshot){
   if(!snapshot)return false;
+  // B5: may be called before this game's own init ever ran — main.js's
+  // cross-game history mode can land straight on a tab you've never opened.
+  pane=document.getElementById("pane-crossing");
   seed=dailySeed("crossing",date);isDaily=false;endless=false;timed=false;archiveDate=date;historyView=true;dateCur=localDateKey();
   puz=gen(seed);
   if(!puz)return false;
@@ -248,7 +251,7 @@ function render(){
     <div class="btnrow">
       ${isDaily||endless||timed||archiveDate?"":'<button class="btn" id="cr-retry">Retry</button>'}
       <button class="btn${isDaily?"":" pri"}" id="cr-new">New puzzle</button>
-      <button class="btn${isDaily?" pri":""}" id="cr-today">Today's</button>
+      <button class="btn today-btn${isDaily?" pri":""}" id="cr-today">Today's</button>
       ${isPremium()?'<button class="btn" id="cr-endless">♾️ Endless</button><button class="btn" id="cr-timed">⏱ Timed</button><button class="btn" id="cr-archive">📅 Archive</button>':""}
     </div>
     <div class="slimhost"></div>`;

@@ -27,7 +27,10 @@ const RETRY_BTN = '<button class="btn" id="cr-retry">Retry</button> ';
 // APPROVED DEVIATION (B5): Codebreak's verdict tiles carry a data-v attribute
 // (the colour-blind mode CSS hook) that v13 never had — accessibility-only,
 // no gameplay/puzzle difference, so strip it before comparing.
-const norm = html => html.replace(/\s+/g, " ").trim().replace(RETRY_BTN, "").replace(/ data-v="[a-z]+"/g, "");
+// APPROVED DEVIATION (B5): every game's own Today's button carries a shared
+// .today-btn class (main.js's cross-game history mode listens for it via
+// event delegation) — a hook, not a behaviour change, so strip it too.
+const norm = html => html.replace(/\s+/g, " ").trim().replace(RETRY_BTN, "").replace(/ data-v="[a-z]+"/g, "").replaceAll(" today-btn", "");
 
 // Load a page, init all five games, run the same deterministic probes on each,
 // and return per-game pane snapshots.

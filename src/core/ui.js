@@ -9,6 +9,23 @@ import { redeemCode, PAYMENT_LINKS, PORTAL_URL } from "./entitlement.js";
 
 export function el(html){const t=document.createElement("template");t.innerHTML=html.trim();return t.content.firstChild;}
 
+// B5: shared placeholder for a game with no record on the date currently
+// being browsed (main.js's cross-game history mode — selecting a date for
+// one game now shows that same date on every tab, not just the one you
+// tapped). Scoped via pane.querySelector, not a page-wide id, since more
+// than one hidden pane can render this at once (one per game with no data
+// that day) and ids must stay unique across the whole document.
+export function renderNotPlayed(pane,dateLabel,onToday){
+  pane.innerHTML=`
+    <div class="stats">
+      <div class="stat big"><div class="lb">DATE</div><div class="vl">${dateLabel}</div></div>
+      <div class="stat"><div class="lb">MODE</div><div class="vl" style="color:var(--faded)">HISTORY</div></div>
+    </div>
+    <div class="board" style="padding:40px 20px;text-align:center;color:var(--faded);font-size:14px">Not played on this date.</div>
+    <div class="btnrow"><button class="btn pri today-btn">Today's</button></div>`;
+  pane.querySelector(".today-btn").onclick=onToday;
+}
+
 // Double-tap/pinch zoom can still trigger on iOS Safari even where
 // touch-action:none is set (a known WebKit quirk on custom drag-gesture
 // elements — it ignores both the viewport meta's user-scalable=no and, for

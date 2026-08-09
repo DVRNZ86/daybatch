@@ -83,6 +83,9 @@ function startArchive(date){
 // snapshot) or the historical seed fails to regenerate.
 export function viewHistoryDate(date,snapshot){
   if(!snapshot)return false;
+  // B5: may be called before this game's own init ever ran — main.js's
+  // cross-game history mode can land straight on a tab you've never opened.
+  pane=document.getElementById("pane-sonar");
   seed=dailySeed("sonar",date);isDaily=false;timed=false;archiveDate=date;historyView=true;
   hintsUsed=snapshot.hintsUsed||0;hintCells=new Set(snapshot.hintCells||[]);dateCur=localDateKey();
   puz=gen(seed);
@@ -206,7 +209,7 @@ function render(){
     </div>
     <div class="btnrow">
       <button class="btn${isDaily?"":" pri"}" id="sn-new">New puzzle</button>
-      <button class="btn${isDaily?" pri":""}" id="sn-today">Today's</button>
+      <button class="btn today-btn${isDaily?" pri":""}" id="sn-today">Today's</button>
       ${isPremium()?'<button class="btn" id="sn-timed">⏱ Timed</button><button class="btn" id="sn-hint"'+(hintsUsed>=MAX_HINTS?" disabled":"")+'>💡 Hint'+(hintsUsed>0?" ("+(MAX_HINTS-hintsUsed)+" left)":"")+'</button><button class="btn" id="sn-archive">📅 Archive</button>':""}
     </div>
     <div class="slimhost"></div>`;

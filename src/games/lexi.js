@@ -69,6 +69,9 @@ function startArchive(date){
 // snapshot) or the historical seed fails to regenerate.
 export function viewHistoryDate(date,snapshot){
   if(!snapshot)return false;
+  // B5: may be called before this game's own init ever ran — main.js's
+  // cross-game history mode can land straight on a tab you've never opened.
+  pane=document.getElementById("pane-lexi");
   isDaily=false;timed=false;archiveDate=date;historyView=true;seedCur=dailySeed("lexi",date);dateCur=localDateKey();
   puz=gen(seedCur);
   if(!puz)puz=gen((seedCur+99991)>>>0);
@@ -142,7 +145,7 @@ function build(){
     </div>
     <div class="btnrow">
       <button class="btn${isDaily?"":" pri"}" id="lx-new">New puzzle</button>
-      <button class="btn${isDaily?" pri":""}" id="lx-today">Today's</button>
+      <button class="btn today-btn${isDaily?" pri":""}" id="lx-today">Today's</button>
       ${isPremium()?'<button class="btn" id="lx-timed">⏱ Timed</button><button class="btn" id="lx-archive">📅 Archive</button>':""}
     </div>
     <div class="slimhost"></div>`;

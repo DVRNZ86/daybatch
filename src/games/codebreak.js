@@ -88,6 +88,9 @@ function startArchive(date){
 // snapshot) or the historical seed fails to regenerate.
 export function viewHistoryDate(date,snapshot){
   if(!snapshot)return false;
+  // B5: may be called before this game's own init ever ran — main.js's
+  // cross-game history mode can land straight on a tab you've never opened.
+  pane=document.getElementById("pane-codebreak");
   seed=dailySeed("codebreak",date);isDaily=false;repeats=false;timed=false;archiveDate=date;historyView=true;
   hintedSlots=new Set(snapshot.hintedSlots||[]);dateCur=localDateKey();
   code=gen(seed);
@@ -256,7 +259,7 @@ function render(){
     ${keys}
     <div class="btnrow">
       <button class="btn${isDaily?"":" pri"}" id="cb-new">New puzzle</button>
-      <button class="btn${isDaily?" pri":""}" id="cb-today">Today's</button>
+      <button class="btn today-btn${isDaily?" pri":""}" id="cb-today">Today's</button>
       ${isPremium()?'<button class="btn" id="cb-repeats">🔁 Repeats (Hard)</button><button class="btn" id="cb-timed">⏱ Timed</button><button class="btn" id="cb-hint">💡 Hint</button><button class="btn" id="cb-archive">📅 Archive</button>':""}
     </div>
     <div class="slimhost"></div>`;

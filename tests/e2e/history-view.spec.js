@@ -194,3 +194,61 @@ test("Today's button from a history view returns to today's live daily", async (
   await expect(page.locator("#pane-tally .stat:has(.lb:text('DATE'))")).toHaveCount(0);
   await expect(page.locator("#ty-today")).toHaveClass(/pri/);
 });
+
+// --- cross-game history mode: selecting a date puts EVERY tab in "browsing
+// this date" mode, not just the one tapped (Darren, 8 Aug 2026) ---
+
+const XDATE = new Date(2026, 1, 1); // 1 Feb 2026 — separate fixture date, only Tally + Sonar played
+const XKEY = "2026-2-1";
+function buildCrossGameHistory() {
+  const tSeed = dailySeed("tally", XDATE);
+  const sSeed = dailySeed("sonar", XDATE), sPuz = genSonar(sSeed);
+  return [
+    { date: XKEY, game: "tally", tier: 1, metrics: { moves: 2, par: 2, attempts: 1, win: true },
+      snapshot: { date: XKEY, seed: tSeed, path: [0, 1], attempts: 1, status: "win" } },
+    { date: XKEY, game: "sonar", tier: 3, metrics: { pings: 1, hintsUsed: 0, win: true },
+      snapshot: { date: XKEY, seed: sSeed, revealed: [[[...sPuz.occ][0], "hit"]], status: "win", hintsUsed: 0, hintCells: [] } }
+    // crossing/codebreak/lexi: no record at all for XKEY
+  ];
+}
+async function seedCrossGame(page) {
+  const history = buildCrossGameHistory();
+  await page.addInitScript((h) => {
+    localStorage.setItem("daybatch:v1", JSON.stringify({
+      schema: 1, lastSeenDate: null, games: {}, history: h, onboardingShown: true,
+      premium: { code: "LIFETIME1", tier: "lifetime", verifiedAt: Date.now(), expiresAt: null }
+    }));
+  }, history);
+}
+
+test("Selecting a date for one game puts every tab in history mode for that same date", async ({ page }) => {
+  await seedCrossGame(page);
+  await page.goto("/");
+  await page.locator("#hdr-history").click();
+  await page.locator('.hi-game[data-game="tally"]').click();
+  await expect(page.locator('.tabs button[data-tab="tally"]')).toHaveClass(/on/);
+
+  // switch to Sonar WITHOUT going back through History — it should already
+  // be showing XKEY's real result, not today's live daily
+  await page.locator('.tabs button[data-tab="sonar"]').click();
+  await expect(page.locator("#pane-sonar .stat:has(.lb:text('MODE')) .vl")).toHaveText("HISTORY");
+  await expect(page.locator("#pane-sonar .slimbar.win")).toBeVisible();
+});
+
+test("A game with no record for the browsed date shows a 'not played' placeholder with a working Today's", async ({ page }) => {
+  await seedCrossGame(page);
+  await page.goto("/");
+  await page.locator("#hdr-history").click();
+  await page.locator('.hi-game[data-game="tally"]').click();
+
+  await page.locator('.tabs button[data-tab="crossing"]').click();
+  await expect(page.locator("#pane-crossing")).toContainText("Not played on this date.");
+  await expect(page.locator("#pane-crossing .stat:has(.lb:text('DATE')) .vl")).toHaveText(XKEY);
+  await expect(page.locator("#pane-crossing .stat:has(.lb:text('MODE')) .vl")).toHaveText("HISTORY");
+
+  // its own Today's exits history mode entirely, not just for this one tab
+  await page.locator("#pane-crossing .today-btn").click();
+  await expect(page.locator("#pane-crossing")).not.toContainText("Not played on this date.");
+  await page.locator('.tabs button[data-tab="tally"]').click();
+  await expect(page.locator("#pane-tally .stat:has(.lb:text('DATE'))")).toHaveCount(0); // back to live, no DATE stat
+});
