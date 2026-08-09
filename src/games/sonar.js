@@ -5,6 +5,7 @@ import { showResult, showHelp, showSlimBar, openArchive } from "../core/ui.js";
 import { getGameState, setGameState, addHistory, localDateKey, isPremium, getBestTime, setBestTime } from "../core/storage.js";
 import { createStopwatch, formatMs } from "../core/timer.js";
 import { SITE_URL } from "../core/share.js";
+import { trackEvent } from "../core/analytics.js";
 
 const SN=7,SHIPS=[3,2,2],MAX_HINTS=2;
 let pane;
@@ -168,7 +169,11 @@ function finish(){
   // B5: snapshot is whatever persist() just wrote (this always runs right
   // after a persist() call on every terminal path) — reused as-is rather
   // than rebuilt, so the history viewer replays exactly this state.
-  if(isDaily)addHistory({date:dateCur,game:"sonar",tier:tierFor(revealed.size,hintsUsed),metrics:{pings:revealed.size,hintsUsed,win:true},snapshot:getGameState("sonar")});
+  if(isDaily){
+    const tier=tierFor(revealed.size,hintsUsed);
+    addHistory({date:dateCur,game:"sonar",tier,metrics:{pings:revealed.size,hintsUsed,win:true},snapshot:getGameState("sonar")});
+    trackEvent("game_complete",{game:"sonar",tier}); // B6
+  }
   showResult(result());
 }
 function render(){

@@ -413,6 +413,19 @@
   color:var(--faded); font-weight:600; font-family:inherit; font-size:13px; cursor:pointer;
 }
 
+/* B6: analytics consent banner — same subtler-sibling pattern as #installhint */
+#analytics-consent {
+  display:flex; align-items:center; gap:10px; margin-bottom:8px;
+  background:var(--card); border:1.5px solid var(--grid); border-radius:12px;
+  padding:8px 12px; font-weight:600; font-size:13px;
+}
+#analytics-consent span { flex:1; }
+#analytics-consent button {
+  padding:8px 12px; border:none; border-radius:10px; background:transparent;
+  color:var(--faded); font-weight:600; font-family:inherit; font-size:13px; cursor:pointer;
+}
+#analytics-consent button.pri { background:var(--ink); color:#fff; }
+
 /* B3: batch report card + header streak chip */
 #report {
   margin-top:14px; background:var(--card); border:1px solid var(--grid);

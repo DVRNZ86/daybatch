@@ -28,6 +28,90 @@ test("onboarding banner: shown on first visit, non-blocking, dismissible, gone a
   await expect(banner).toBeHidden();
 });
 
+// B6: analytics consent banner. Sequenced, not stacked, with onboarding — a
+// real regression found while building this: three simultaneous first-visit
+// banners (onboarding + install-hint + consent) pushed Lexi's Check button
+// below the fold and broke touch input (see git history for the fix).
+test("analytics consent banner: does not stack with onboarding on a genuine first visit", async ({ page }) => {
+  await page.goto("/");
+  const onboarding = page.locator("#onboarding");
+  const consent = page.locator("#analytics-consent");
+  await expect(onboarding).toBeVisible();
+  await expect(consent).toBeHidden(); // not shown yet — would double up with onboarding
+
+  await page.locator("#ob-start").click();
+  await expect(onboarding).toBeHidden();
+  await expect(consent).toBeVisible(); // now sequenced in
+});
+
+test("analytics consent banner: shown immediately for a returning user (onboarding already seen)", async ({ page }) => {
+  await page.addInitScript(() => {
+    // addInitScript re-runs on every navigation, including the reload() below —
+    // only seed if nothing's there yet, or a reload would stomp analyticsConsent
+    // right back to undecided.
+    if (!localStorage.getItem("daybatch:v1")) {
+      localStorage.setItem("daybatch:v1", JSON.stringify({
+        schema: 1, lastSeenDate: null, games: {}, history: [], onboardingShown: true
+      }));
+    }
+  });
+  await page.goto("/");
+  await expect(page.locator("#onboarding")).toBeHidden();
+  await expect(page.locator("#analytics-consent")).toBeVisible();
+});
+
+test("analytics consent: Accept/Decline persists, hides the banner, gone after reload; Settings toggle reflects and can change it", async ({ page }) => {
+  await page.addInitScript(() => {
+    // addInitScript re-runs on every navigation, including the reload() below —
+    // only seed if nothing's there yet, or a reload would stomp analyticsConsent
+    // right back to undecided.
+    if (!localStorage.getItem("daybatch:v1")) {
+      localStorage.setItem("daybatch:v1", JSON.stringify({
+        schema: 1, lastSeenDate: null, games: {}, history: [], onboardingShown: true
+      }));
+    }
+  });
+  await page.goto("/");
+  const consent = page.locator("#analytics-consent");
+  await expect(consent).toBeVisible();
+  await page.locator("#ac-accept").click();
+  await expect(consent).toBeHidden();
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("daybatch:v1")).analyticsConsent)).toBe(true);
+
+  await page.reload();
+  await expect(consent).toBeHidden(); // already decided — banner doesn't reappear
+
+  // Settings toggle reflects the accepted state and can flip it back off
+  await page.locator(".sn-row button").first().click(); // harmless interaction, ensures pane ready
+  await page.locator("#sn-help").click();
+  await page.locator("#h-settings").click();
+  await expect(page.locator("#st-analytics")).toBeChecked();
+  await page.locator("#st-analytics").uncheck();
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("daybatch:v1")).analyticsConsent)).toBe(false);
+});
+
+test("analytics consent: Decline persists and hides the banner, gone after reload", async ({ page }) => {
+  await page.addInitScript(() => {
+    // addInitScript re-runs on every navigation, including the reload() below —
+    // only seed if nothing's there yet, or a reload would stomp analyticsConsent
+    // right back to undecided.
+    if (!localStorage.getItem("daybatch:v1")) {
+      localStorage.setItem("daybatch:v1", JSON.stringify({
+        schema: 1, lastSeenDate: null, games: {}, history: [], onboardingShown: true
+      }));
+    }
+  });
+  await page.goto("/");
+  const consent = page.locator("#analytics-consent");
+  await expect(consent).toBeVisible();
+  await page.locator("#ac-decline").click();
+  await expect(consent).toBeHidden();
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("daybatch:v1")).analyticsConsent)).toBe(false);
+
+  await page.reload();
+  await expect(consent).toBeHidden();
+});
+
 test("Settings is reachable from the help overlay and shows haptics + colour-blind toggles", async ({ page }) => {
   await openTab(page, "sonar");
   await page.locator("#sn-help").click();

@@ -6,6 +6,7 @@ import { showResult, showHelp, showSlimBar, openArchive, suppressZoomGestures } 
 import { getGameState, setGameState, addHistory, localDateKey, isPremium, getBestTime, setBestTime } from "../core/storage.js";
 import { createStopwatch, formatMs } from "../core/timer.js";
 import { SITE_URL } from "../core/share.js";
+import { trackEvent } from "../core/analytics.js";
 
 const SIZE=5,N=25,START=0,END=24;
 let pane;
@@ -284,7 +285,11 @@ function finish(){
   // B5: snapshot is whatever persist() just wrote (always runs right before
   // finish() on every terminal path) — reused as-is so the history viewer
   // replays exactly this state.
-  if(isDaily)addHistory({date:dateCur,game:"tally",tier:tierFor(path.length,puz.par,attempts),metrics:{moves:path.length,par:puz.par,attempts,win:true},snapshot:getGameState("tally")});
+  if(isDaily){
+    const tier=tierFor(path.length,puz.par,attempts);
+    addHistory({date:dateCur,game:"tally",tier,metrics:{moves:path.length,par:puz.par,attempts,win:true},snapshot:getGameState("tally")});
+    trackEvent("game_complete",{game:"tally",tier}); // B6
+  }
   showResult(result());
 }
 export function initTally(){

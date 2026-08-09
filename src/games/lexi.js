@@ -7,6 +7,7 @@ import { showResult, showHelp, showSlimBar, openArchive, suppressZoomGestures } 
 import { getGameState, setGameState, addHistory, localDateKey, isPremium, getBestTime, setBestTime } from "../core/storage.js";
 import { createStopwatch, formatMs } from "../core/timer.js";
 import { SITE_URL } from "../core/share.js";
+import { trackEvent } from "../core/analytics.js";
 import { W6, ALL, BONUS } from "./words.js";
 
 export function counts(w){const c={};for(const ch of w)c[ch]=(c[ch]||0)+1;return c;}
@@ -319,7 +320,11 @@ function finish(){
   // B5: snapshot is whatever persist() just wrote (always runs right before
   // finish() on every terminal path) — reused as-is so the history viewer
   // replays exactly this state.
-  if(isDaily)addHistory({date:dateCur,game:"lexi",tier:tierFor(hints),metrics:{words:puz.targets.length,hints,bonus:bonus.size,win:true},snapshot:getGameState("lexi")});
+  if(isDaily){
+    const tier=tierFor(hints);
+    addHistory({date:dateCur,game:"lexi",tier,metrics:{words:puz.targets.length,hints,bonus:bonus.size,win:true},snapshot:getGameState("lexi")});
+    trackEvent("game_complete",{game:"lexi",tier}); // B6
+  }
   showResult(result());
 }
 const LX_HELP=`<b>Swipe through the letters</b> and release to submit — or <b>tap letters one by one</b> and press ✓ Check. Every word uses each wheel letter at most once.<br><br>Fill every slot above the wheel — all target words are <b>common English words</b> of 3+ letters made from today's six letters.<br><br>Spell a real word that <b>isn't</b> a target and it still counts — as a <b>Bonus word</b>, tracked separately and never affecting your rank.<br><br><b>🔀 Shuffle</b> rearranges the wheel when you're stuck — it often shakes a word loose. <b>💡 Hint</b> reveals a whole word, but hints count against your rank.<br><br>Retrace your swipe to undo a letter.`;

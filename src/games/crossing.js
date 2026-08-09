@@ -5,6 +5,7 @@ import { showResult, showHelp, showSlimBar, openArchive } from "../core/ui.js";
 import { getGameState, setGameState, addHistory, localDateKey, isPremium, getCrossingEndlessBest, setCrossingEndlessBest, getBestTime, setBestTime } from "../core/storage.js";
 import { createStopwatch, formatMs } from "../core/timer.js";
 import { SITE_URL } from "../core/share.js";
+import { trackEvent } from "../core/analytics.js";
 
 const ROWS=7,COLS=5;
 let pane;
@@ -215,7 +216,11 @@ function finish(){
   // B5: snapshot is whatever persist() just wrote (always runs right before
   // finish() on every terminal path) — reused as-is so the history viewer
   // replays exactly this state.
-  if(isDaily)addHistory({date:dateCur,game:"crossing",tier:tierFor(status,lives),metrics:{steps,lives,win:status==="win"},snapshot:getGameState("crossing")});
+  if(isDaily){
+    const tier=tierFor(status,lives);
+    addHistory({date:dateCur,game:"crossing",tier,metrics:{steps,lives,win:status==="win"},snapshot:getGameState("crossing")});
+    trackEvent("game_complete",{game:"crossing",tier}); // B6
+  }
   showResult(result());
 }
 function clueColor(n){return n===0?"var(--faded)":n===1?"var(--win)":n===2?"var(--amber)":"var(--bad)";}
