@@ -7,13 +7,18 @@ import { showResult, showHelp, showSlimBar, openArchive, suppressZoomGestures } 
 import { getGameState, setGameState, addHistory, localDateKey, isPremium, getBestTime, setBestTime } from "../core/storage.js";
 import { createStopwatch, formatMs } from "../core/timer.js";
 import { SITE_URL } from "../core/share.js";
-import { W6, ALL } from "./words.js";
+import { W6, ALL, BONUS } from "./words.js";
 
 export function counts(w){const c={};for(const ch of w)c[ch]=(c[ch]||0)+1;return c;}
 export function canForm(word,base){const b=Object.assign({},base);for(const ch of word){if(!b[ch])return false;b[ch]--;}return true;}
+// B6: any legitimate word the player spells that isn't today's target still earns
+// "Bonus words" credit — union of the curated (ALL) and broad validation (BONUS) dictionaries.
+// Recognition only: never affects target selection, win condition, or tier/score math.
+const VALID_WORDS=new Set([...ALL,...BONUS]);
+export function isBonusWord(word){return VALID_WORDS.has(word);}
 
 let pane;
-let puz,found,hinted,hints,status,isDaily,seq,dragging=false,moved=false,seedCur,dateCur;
+let puz,found,hinted,hints,status,isDaily,seq,dragging=false,moved=false,seedCur,dateCur,bonus;
 let letterEls,elPrev,wheelEl,centers;
 let timed=false; // D1: Timed mode (premium)
 let archiveDate=null; // D1: Archive (premium)
@@ -40,7 +45,7 @@ export function gen(sd){
 function load(sd,daily){
   isDaily=daily;timed=false;archiveDate=null;historyView=false;seedCur=sd;dateCur=localDateKey();puz=gen(sd);
   if(!puz)puz=gen((sd+99991)>>>0);
-  found=new Set();hinted=new Set();hints=0;status="play";seq=[];
+  found=new Set();hinted=new Set();hints=0;bonus=new Set();status="play";seq=[];
   build();persist();
 }
 // D1: Timed mode (premium) — ephemeral like practice, never touches
@@ -49,7 +54,7 @@ function startTimed(){
   isDaily=false;timed=true;archiveDate=null;historyView=false;seedCur=Math.floor(Math.random()*1e9);dateCur=localDateKey();
   puz=gen(seedCur);
   if(!puz)puz=gen((seedCur+99991)>>>0);
-  found=new Set();hinted=new Set();hints=0;status="play";seq=[];
+  found=new Set();hinted=new Set();hints=0;bonus=new Set();status="play";seq=[];
   build();
   stopwatch.start(ms=>{const el=document.getElementById("lx-timer");if(el)el.textContent=formatMs(ms);});
 }
@@ -59,7 +64,7 @@ function startArchive(date){
   isDaily=false;timed=false;archiveDate=date;historyView=false;seedCur=dailySeed("lexi",date);dateCur=localDateKey();
   puz=gen(seedCur);
   if(!puz)puz=gen((seedCur+99991)>>>0);
-  found=new Set();hinted=new Set();hints=0;status="play";seq=[];
+  found=new Set();hinted=new Set();hints=0;bonus=new Set();status="play";seq=[];
   build();
 }
 // B5: view a past completed daily exactly as it was left (read-only). Same
@@ -77,7 +82,13 @@ export function viewHistoryDate(date,snapshot){
   if(!puz)puz=gen((seedCur+99991)>>>0);
   if(!puz)return false;
   puz.letters=snapshot.letters;
-  found=new Set(snapshot.found);hinted=new Set(snapshot.hinted);hints=snapshot.hints;status=snapshot.status;seq=[];
+  // B6: restore the persisted target list — a later dictionary change must never retroactively
+  // alter a historical record's targets (would desync from the snapshot's found/hinted words).
+  // snapshot.targets is undefined for pre-B6 history — falls back to a live regeneration above,
+  // same best-effort-for-legacy-records pattern already used for pre-B5 snapshotless history.
+  if(snapshot.targets)puz.targets=snapshot.targets;
+  // B6: snapshot.bonus is undefined for pre-B6 history records — default to empty, don't break replay.
+  found=new Set(snapshot.found);hinted=new Set(snapshot.hinted);hints=snapshot.hints;bonus=new Set(snapshot.bonus||[]);status=snapshot.status;seq=[];
   build();
   showSlimBar(result());
   return true;
@@ -86,7 +97,11 @@ export function viewHistoryDate(date,snapshot){
 // practice is ephemeral.
 function persist(){
   if(!isDaily)return;
-  setGameState("lexi",{date:dateCur,seed:seedCur,letters:puz.letters,found:[...found],hinted:[...hinted],hints,status});
+  // B6: targets is persisted explicitly (previously always re-derived from a live gen(seed) call) —
+  // a dictionary content change (like B6's) must never retroactively alter an already-saved puzzle's
+  // target list on reload/history-view. Legacy saves/history predating this field fall back to a
+  // live regeneration (openDaily/viewHistoryDate), same graceful-degradation pattern as bonus||[].
+  setGameState("lexi",{date:dateCur,seed:seedCur,letters:puz.letters,targets:puz.targets,found:[...found],hinted:[...hinted],hints,bonus:[...bonus],status});
 }
 // Tier per PLAN.md B2 contract: 0 hints→1, ≤2→2, 3+→3.
 export function tierFor(h){return h===0?1:h<=2?2:3;}
@@ -97,7 +112,12 @@ function openDaily(){
     isDaily=true;timed=false;archiveDate=null;historyView=false;seedCur=s.seed;dateCur=s.date;puz=gen(s.seed);
     if(!puz)puz=gen((s.seed+99991)>>>0);
     puz.letters=s.letters;
-    found=new Set(s.found);hinted=new Set(s.hinted);hints=s.hints;status=s.status;seq=[];
+    // B6: restore the persisted target list so a later dictionary change can never retroactively
+    // alter an in-progress daily. s.targets is undefined for pre-B6 saves — falls back to the
+    // freshly-generated targets above (old behaviour, best-effort for legacy state).
+    if(s.targets)puz.targets=s.targets;
+    // B6: s.bonus is undefined for pre-B6 saved state — default to empty, don't break reload.
+    found=new Set(s.found);hinted=new Set(s.hinted);hints=s.hints;bonus=new Set(s.bonus||[]);status=s.status;seq=[];
     build();
     if(status!=="play")showSlimBar(result());
     return;
@@ -119,6 +139,7 @@ function build(){
       <button class="helpbtn" id="lx-help">?</button>
       <div class="stat big"><div class="lb">FOUND</div><div class="vl" style="color:var(--win)" id="lx-found">${found.size}/${puz.targets.length}</div></div>
       <div class="stat"><div class="lb">HINTS</div><div class="vl" id="lx-hints">${hints}</div></div>
+      <div class="stat"><div class="lb">BONUS</div><div class="vl" style="color:var(--amber)" id="lx-bonus">${bonus.size}</div></div>
       ${timerStat}${dateStat}
       <div class="stat"><div class="lb">MODE</div><div class="vl" style="color:var(--faded)">${historyView?"HISTORY":timed?"TIMED":archiveDate?"ARCHIVE":isDaily?"DAILY":"PRAC"}</div></div>
     </div>
@@ -241,8 +262,15 @@ function submitSeq(){
       elPrev.textContent=word;
       elPrev.style.color="var(--win)";
       checkWin();
-    }else if(found.has(word)){
+    }else if(found.has(word)||bonus.has(word)){
       elPrev.style.color="var(--faded)";
+    }else if(status==="play"&&isBonusWord(word)){
+      // B6: a legitimate word that isn't today's target — bonus credit only,
+      // never touches found/targets, win condition, or tier/score math.
+      bonus.add(word);
+      persist();refresh();
+      elPrev.textContent=word+" (bonus!)";
+      elPrev.style.color="var(--amber)";
     }else{
       elPrev.style.color="var(--bad)";
       wheelEl.classList.remove("shakeX");void wheelEl.offsetWidth;wheelEl.classList.add("shakeX");
@@ -255,6 +283,7 @@ function refresh(){
   pane.querySelector("#lx-slots").innerHTML=slotsHTML();
   pane.querySelector("#lx-found").textContent=found.size+"/"+puz.targets.length;
   pane.querySelector("#lx-hints").textContent=hints;
+  const bonusEl=pane.querySelector("#lx-bonus");if(bonusEl)bonusEl.textContent=bonus.size;
 }
 function checkWin(){
   if(found.size===puz.targets.length){
@@ -278,9 +307,11 @@ function result(){
       onAgain:()=>startTimed(),
       slimHost:pane.querySelector(".slimhost")};
   }
-  const share="DAYBATCH · LEXI 🔤 "+label+"\n"+puz.targets.length+" words · "+hints+" hint"+(hints===1?"":"s")+"\n"+SITE_URL; // B3 link footer
+  const share="DAYBATCH · LEXI 🔤 "+label+"\n"+puz.targets.length+" words · "+hints+" hint"+(hints===1?"":"s")+"\n"+SITE_URL; // B3 link footer, unchanged contract
+  // B6: bonus count shown in the result modal's line only (not the share-card contract text above).
+  const bonusLine=bonus.size?" · "+bonus.size+" bonus":"";
   return{win:true,title:label,
-    line:puz.targets.length+" words · "+hints+" hint"+(hints===1?"":"s"),share,
+    line:puz.targets.length+" words · "+hints+" hint"+(hints===1?"":"s")+bonusLine,share,
     onAgain:()=>load(Math.floor(Math.random()*1e9),false),
     slimHost:pane.querySelector(".slimhost")};
 }
@@ -288,10 +319,10 @@ function finish(){
   // B5: snapshot is whatever persist() just wrote (always runs right before
   // finish() on every terminal path) — reused as-is so the history viewer
   // replays exactly this state.
-  if(isDaily)addHistory({date:dateCur,game:"lexi",tier:tierFor(hints),metrics:{words:puz.targets.length,hints,win:true},snapshot:getGameState("lexi")});
+  if(isDaily)addHistory({date:dateCur,game:"lexi",tier:tierFor(hints),metrics:{words:puz.targets.length,hints,bonus:bonus.size,win:true},snapshot:getGameState("lexi")});
   showResult(result());
 }
-const LX_HELP=`<b>Swipe through the letters</b> and release to submit — or <b>tap letters one by one</b> and press ✓ Check. Every word uses each wheel letter at most once.<br><br>Fill every slot above the wheel — all target words are <b>common English words</b> of 3+ letters made from today's six letters.<br><br><b>🔀 Shuffle</b> rearranges the wheel when you're stuck — it often shakes a word loose. <b>💡 Hint</b> reveals a whole word, but hints count against your rank.<br><br>Retrace your swipe to undo a letter.`;
+const LX_HELP=`<b>Swipe through the letters</b> and release to submit — or <b>tap letters one by one</b> and press ✓ Check. Every word uses each wheel letter at most once.<br><br>Fill every slot above the wheel — all target words are <b>common English words</b> of 3+ letters made from today's six letters.<br><br>Spell a real word that <b>isn't</b> a target and it still counts — as a <b>Bonus word</b>, tracked separately and never affecting your rank.<br><br><b>🔀 Shuffle</b> rearranges the wheel when you're stuck — it often shakes a word loose. <b>💡 Hint</b> reveals a whole word, but hints count against your rank.<br><br>Retrace your swipe to undo a letter.`;
 export function initLexi(){
   pane=document.getElementById("pane-lexi");
   openDaily();

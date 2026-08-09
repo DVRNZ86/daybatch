@@ -369,7 +369,7 @@ test("Lexi: found words, hints and wheel order survive reload; win restores as b
 
   const h = await readHistory(page);
   expect(h.filter(r => r.game === "lexi")).toEqual([
-    { date: DATE_KEY, game: "lexi", tier: 3, metrics: { words: N, hints: N - 2, win: true }, snapshot: expect.any(Object) }
+    { date: DATE_KEY, game: "lexi", tier: 3, metrics: { words: N, hints: N - 2, bonus: 0, win: true }, snapshot: expect.any(Object) }
   ]);
   expect(errors).toEqual([]);
 });

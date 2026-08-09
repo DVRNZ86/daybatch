@@ -3,7 +3,11 @@
 // boards on first paint AND same hidden state (probed via deterministic taps).
 import { test, expect } from "@playwright/test";
 
-const TABS = ["tally", "crossing", "sonar", "codebreak", "lexi"];
+// APPROVED DEVIATION (PLAN.md B6, Darren, 9 Aug 2026): Lexi's target/bonus dictionaries were
+// deliberately expanded, which changes gen()'s seed→puzzle mapping (same seed, different letters/
+// targets than v13/pre-B6). Lexi is excluded from the byte-identity comparison below and checked
+// separately (still deterministic, still a valid puzzle — just no longer v13-identical, by design).
+const TABS = ["tally", "crossing", "sonar", "codebreak"];
 
 // Pin device-local date to 10 July 2026, noon. Only Date is faked; timers and
 // rAF stay real so both pages boot exactly as in production.
@@ -85,6 +89,31 @@ test("same date produces identical puzzles in v13 and the modular app", async ({
   for (const key of Object.keys(ref.snaps)) {
     expect(app.snaps[key], `pane snapshot "${key}" must match v13`).toEqual(ref.snaps[key]);
   }
+  await ctxA.close();
+  await ctxB.close();
+});
+
+// Lexi (B6 approved deviation, see TABS comment above): still must be deterministic
+// same-date-same-puzzle within the modular app itself, just no longer v13-identical.
+test("Lexi: same pinned date produces the same puzzle across two independent loads", async ({ browser }) => {
+  const ctxA = await browser.newContext();
+  const ctxB = await browser.newContext();
+  const pageA = await ctxA.newPage();
+  const pageB = await ctxB.newPage();
+  await pinDate(pageA);
+  await pinDate(pageB);
+  await pageA.goto("/");
+  await pageB.goto("/");
+  await pageA.locator('.tabs button[data-tab="lexi"]').click();
+  await pageB.locator('.tabs button[data-tab="lexi"]').click();
+  await expect(pageA.locator("#pane-lexi .board")).toBeVisible();
+  await expect(pageB.locator("#pane-lexi .board")).toBeVisible();
+  const a = norm(await pageA.locator("#pane-lexi").innerHTML());
+  const b = norm(await pageB.locator("#pane-lexi").innerHTML());
+  expect(a).toEqual(b);
+  const slotCount = await pageA.locator("#lx-slots .lx-word").count();
+  expect(slotCount).toBeGreaterThanOrEqual(7);
+  expect(slotCount).toBeLessThanOrEqual(16);
   await ctxA.close();
   await ctxB.close();
 });

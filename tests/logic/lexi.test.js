@@ -1,17 +1,34 @@
 // Lexi generator + dictionary: determinism, fixed-seed fixture, invariants.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { gen, counts, canForm } from "../../src/games/lexi.js";
-import { W3, W4, W5, W6, ALL } from "../../src/games/words.js";
+import { gen, counts, canForm, isBonusWord } from "../../src/games/lexi.js";
+import { W3, W4, W5, W6, ALL, BONUS } from "../../src/games/words.js";
 
-test("dictionaries have the v13 word counts and lengths", () => {
+// APPROVED DEVIATION (PLAN.md B6, Darren, 9 Aug 2026): W4/W5/W6 were deliberately expanded
+// (public-domain ENABLE1 ∩ Wiktionary-frequency "popular" subset, profanity-filtered) so far more
+// unique daily puzzles qualify — W6 alone went from v13's 430 words (222 puzzle-eligible) to 4055
+// (1857 eligible). W3 is untouched (left as v13's curated 331 — expansion there was skippable
+// noise, see the B6 build notes). This test now pins the B6 counts, not v13's original ones.
+test("dictionaries have the B6 word counts and lengths", () => {
   assert.equal(W3.length, 331);
-  assert.equal(W4.length, 853);
-  assert.equal(W5.length, 811);
-  assert.equal(W6.length, 430);
-  assert.equal(ALL.length, 331 + 853 + 811 + 430);
+  assert.equal(W4.length, 1981);
+  assert.equal(W5.length, 3074);
+  assert.equal(W6.length, 4055);
+  assert.equal(ALL.length, W3.length + W4.length + W5.length + W6.length);
   for (const [list, len] of [[W3, 3], [W4, 4], [W5, 5], [W6, 6]])
     for (const w of list) assert.equal(w.length, len, `"${w}" in W${len}`);
+  // BONUS is the broad validation dictionary (3-6 letters) — a superset used only for
+  // "is this a real word" bonus credit, never for target selection.
+  assert.ok(BONUS.length > 15000, "BONUS dictionary is a large validation set");
+  for (const w of BONUS) assert.ok(w.length >= 3 && w.length <= 6, `"${w}" in valid BONUS length range`);
+});
+
+test("isBonusWord recognizes real words beyond the curated target dictionary, rejects gibberish", () => {
+  assert.ok(isBonusWord("teen"), "previously-rejected real word (Darren's playtest) now recognized");
+  assert.ok(isBonusWord("centre"), "British spelling now recognized");
+  assert.ok(isBonusWord("center"), "US spelling still recognized");
+  assert.ok(!isBonusWord("zzqx"), "not a word");
+  assert.ok(!isBonusWord(""), "empty string is not a word");
 });
 
 test("counts/canForm letter accounting", () => {
@@ -26,11 +43,18 @@ test("gen is deterministic for a given seed", () => {
   assert.deepEqual(gen(86420), gen(86420));
 });
 
-test("gen(12345) matches pinned fixture (seed contract)", () => {
+// APPROVED DEVIATION (PLAN.md B6, Darren, 9 Aug 2026): gen()'s seed→puzzle mapping intentionally
+// changed alongside the dictionary expansion above — this pins the new B6 output for seed 12345,
+// not v13's original fixture. gen() is still fully deterministic per seed (see the next test);
+// what changed is which puzzle a given numeric seed resolves to, a one-time consequence of growing
+// the word pool. Already-persisted games are protected from this regardless (see lexi.js persist()/
+// openDaily()/viewHistoryDate() — targets are now saved explicitly, never re-derived from a live
+// gen() call on reload, so a future dictionary change can't retroactively corrupt saved state).
+test("gen(12345) matches pinned fixture (B6 seed contract)", () => {
   const p = gen(12345);
-  assert.equal(p.seed, "winner");
-  assert.equal(p.letters.join(""), "ewrnni");
-  assert.deepEqual(p.targets, ["inn", "new", "win", "nine", "rein", "wine", "wire", "inner", "winner"]);
+  assert.equal(p.seed, "wiener");
+  assert.equal(p.letters.join(""), "ewrnei");
+  assert.deepEqual(p.targets, ["new", "win", "rein", "weir", "were", "wine", "wire", "renew", "weiner", "wiener"]);
 });
 
 test("puzzle invariants hold across many seeds", () => {
