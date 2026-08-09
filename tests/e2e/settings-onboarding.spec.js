@@ -90,6 +90,28 @@ test("analytics consent: Accept/Decline persists, hides the banner, gone after r
   await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("daybatch:v1")).analyticsConsent)).toBe(false);
 });
 
+// B6 regression: real GA4/Cloudflare credentials went live 9 Aug 2026, and both
+// trackers must stay off the test/dev/LAN/tunnel origin this suite runs on —
+// Cloudflare's endpoint only allow-lists daybatch.app and rejects anything
+// else with a real CORS error (which broke ~35 tests before this was fixed).
+// Accepting consent (which would normally load GA) must still not inject
+// either tracker's script tag off the real hostname, and never any console
+// errors either way.
+test("analytics: neither GA nor Cloudflare inject off the production hostname, even after accepting consent", async ({ page }) => {
+  const errors = [];
+  page.on("console", m => { if (m.type() === "error") errors.push(m.text()); });
+  page.on("pageerror", e => errors.push(String(e)));
+  await page.goto("/");
+  await page.locator("#ob-start").click();
+  await page.locator("#ac-accept").click();
+
+  const scriptSrcs = await page.evaluate(() => [...document.querySelectorAll("script")].map(s => s.src).filter(Boolean));
+  expect(scriptSrcs.some(s => s.includes("googletagmanager.com"))).toBe(false);
+  expect(scriptSrcs.some(s => s.includes("cloudflareinsights.com"))).toBe(false);
+  await page.waitForTimeout(300); // let any stray async beacon activity surface
+  expect(errors).toEqual([]);
+});
+
 test("analytics consent: Decline persists and hides the banner, gone after reload", async ({ page }) => {
   await page.addInitScript(() => {
     // addInitScript re-runs on every navigation, including the reload() below —

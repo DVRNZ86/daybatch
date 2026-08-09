@@ -2,32 +2,44 @@
 // usage, per-game opens/completions+tier, share-card clicks, no PII in any
 // event, gated behind the one-time consent banner (main.js). Cloudflare Web
 // Analytics is an ungated cookieless secondary/backup — no consent needed,
-// injects unconditionally at boot. Both are client-side beacon script tags
-// injected here, no server code, no new npm dependency (PLAN.md A1).
+// injects unconditionally at boot, PRODUCTION ONLY (see isProductionHost()
+// below — Cloudflare's collection endpoint rejects any other hostname with a
+// real CORS error, and firing either tracker off a dev/test/LAN/tunnel
+// origin is bad practice regardless). Both are client-side beacon script
+// tags injected here, no server code, no new npm dependency (PLAN.md A1).
 //
-// Both need a real ID/token before they do anything — see GA_MEASUREMENT_ID
-// and CF_BEACON_TOKEN below (TODOs for Darren, same pattern as D1's TEST MODE
-// Stripe placeholders in src/core/entitlement.js). Also turn off "Google
-// Signals" / ads personalization in the GA4 property itself (a dashboard
-// setting, not code) — the main source of legal exposure, per the B6 decision.
+// Both IDs below are real (set up 9 Aug 2026) — GA_MEASUREMENT_ID is the
+// daybatch.app web stream's Measurement ID; CF_BEACON_TOKEN is from
+// Cloudflare Web Analytics' "Enable with JS Snippet installation" mode
+// (automatic edge-injection was skipped since .app isn't Cloudflare-proxied,
+// so Cloudflare's edge never sees its responses to inject into). Also turn
+// off "Google Signals" / ads personalization in the GA4 property itself (a
+// dashboard setting, not code) — the main source of legal exposure, per the
+// B6 decision.
 import { getAnalyticsConsent, setAnalyticsConsent } from "./storage.js";
 
-// Real GA4 Measurement ID (daybatch.app web stream, set up 9 Aug 2026).
 const GA_MEASUREMENT_ID = "G-8SB046CWRZ";
+const CF_BEACON_TOKEN = "8007c60727ec4ebe80d921384b3b9da1";
 
-// TODO(Darren): replace with the real Cloudflare Web Analytics token (Cloudflare
-// dashboard → Web Analytics → add daybatch.app as a site → copy the token) before
-// launch. Ungated by design (cookieless beacon, PLAN.md B6) — unlike GA, this
-// injects unconditionally, it just does nothing useful until a real token is set.
-const CF_BEACON_TOKEN = "REPLACE_WITH_CF_TOKEN";
+// Cloudflare's collection endpoint only accepts the hostname(s) configured
+// against the token (daybatch.app) — anywhere else (localhost test/dev
+// servers, a LAN IP, a tunnel URL) gets a CORS rejection that shows up as a
+// real console error. GA4 doesn't enforce this, but firing either tracker
+// from non-production is bad practice regardless — it pollutes real numbers
+// with dev/test noise. Both injectors are gated on this, single source of
+// truth for "are we actually live."
+const PRODUCTION_HOSTNAMES = ["daybatch.app"];
+function isProductionHost() {
+  return typeof location !== "undefined" && PRODUCTION_HOSTNAMES.includes(location.hostname);
+}
 
 let gaLoaded = false;
 
 function injectCF() {
   if (!CF_BEACON_TOKEN || CF_BEACON_TOKEN.startsWith("REPLACE_")) return;
-  if (typeof document === "undefined") return; // no DOM (e.g. a Node test) — nothing to inject into
+  if (typeof document === "undefined" || !isProductionHost()) return; // no DOM, or not the real deploy — nothing to inject into
   const s = document.createElement("script");
-  s.defer = true;
+  s.type = "module"; // matches Cloudflare's real current snippet exactly (not a plain deferred script)
   s.src = "https://static.cloudflareinsights.com/beacon.min.js";
   s.setAttribute("data-cf-beacon", JSON.stringify({ token: CF_BEACON_TOKEN }));
   document.head.appendChild(s);
@@ -35,7 +47,7 @@ function injectCF() {
 
 function injectGA() {
   if (gaLoaded || !GA_MEASUREMENT_ID || GA_MEASUREMENT_ID.includes("XXXX")) return;
-  if (typeof document === "undefined") return; // no DOM (e.g. a Node test) — nothing to inject into
+  if (typeof document === "undefined" || !isProductionHost()) return; // no DOM, or not the real deploy — nothing to inject into
   gaLoaded = true;
   const s = document.createElement("script");
   s.async = true;
