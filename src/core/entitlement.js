@@ -7,19 +7,24 @@ const WORKER = "https://daybatch-entitlement.daybatch.workers.dev";
 export const VERIFY_ENDPOINT = WORKER + "/redeem";
 export const CLAIM_ENDPOINT = WORKER + "/claim";
 
-// Stripe Payment Links — TEST MODE values (see worker/README.md). Swap for
-// the live-mode links before launch; the tier keys are the contract.
+// Stripe Payment Links — LIVE MODE values (set up 9 Sep 2026, see
+// worker/README.md). Each Payment Link's "Confirmation page" is set to
+// https://daybatch.app/?session_id={CHECKOUT_SESSION_ID}, verified
+// individually per tier before going live. The tier keys are the contract.
+// Note: live-mode URL slugs don't map 1:1 to their old test-mode tier
+// (Stripe's "copy to live mode" redistributes the slug pool) — each was
+// confirmed correct by its actual product name/price on Stripe's own page,
+// not by slug pattern-matching.
 export const PAYMENT_LINKS = {
-  monthly: "https://buy.stripe.com/test_4gM9AUbZjfYO1mi7NX8Zq00",
-  yearly: "https://buy.stripe.com/test_9B6bJ29Rb27Y5Cyecl8Zq01",
-  lifetime: "https://buy.stripe.com/test_7sY3cwbZj13U5Cy3xH8Zq02"
+  monthly: "https://buy.stripe.com/7sY3cwbZj13U5Cy3xH8Zq02",
+  yearly: "https://buy.stripe.com/9B6bJ29Rb27Y5Cyecl8Zq01",
+  lifetime: "https://buy.stripe.com/4gM9AUbZjfYO1mi7NX8Zq00"
 };
 
-// Stripe Customer Portal login — TEST MODE (swap for live at launch, and
-// activate the portal in live mode first; settings don't copy across).
+// Stripe Customer Portal login — LIVE MODE (activated 9 Sep 2026).
 // Subscribers cancel/manage there; identity is their checkout email, so no
 // accounts on our side. Irrelevant to lifetime purchases.
-export const PORTAL_URL = "https://billing.stripe.com/p/login/test_4gM9AUbZjfYO1mi7NX8Zq00";
+export const PORTAL_URL = "https://billing.stripe.com/p/login/4gM9AUbZjfYO1mi7NX8Zq00";
 
 // How close to the entitlement's expiresAt we start silently re-verifying.
 // expiresAt = verification time + 2 weeks (Worker's OFFLINE_GRACE_MS), so
