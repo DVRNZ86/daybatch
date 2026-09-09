@@ -28,19 +28,19 @@ Three endpoints, no database beyond one KV namespace for redemption counts:
    `https://daybatch.app/?session_id={CHECKOUT_SESSION_ID}`
    (Stripe substitutes the real session id into that template.)
 
-   **Done in TEST MODE, 15 Jul 2026** (live-mode links/prices must be
-   re-created and these values swapped before launch):
-   | Tier | Payment Link | Price id |
-   |---|---|---|
-   | Monthly $2 | https://buy.stripe.com/test_4gM9AUbZjfYO1mi7NX8Zq00 | `price_1Tur7XJNtMcPWsbdy3QzVx6N` |
-   | Annual $20 | https://buy.stripe.com/test_9B6bJ29Rb27Y5Cyecl8Zq01 | `price_1TurFvJNtMcPWsbduVxZC2ER` |
-   | Lifetime $30 | https://buy.stripe.com/test_7sY3cwbZj13U5Cy3xH8Zq02 | `price_1TurIBJNtMcPWsbdPEbmAqgp` |
+   **Done in TEST MODE, 15 Jul 2026**, swapped to LIVE MODE 9 Sep 2026 (see
+   `src/core/entitlement.js` `PAYMENT_LINKS`/`PORTAL_URL` for the current
+   live values — not repeated here since they're not secret but no need to
+   duplicate them). Note for next time this ever needs redoing: Stripe's
+   "copy to live mode" redistributes the `buy.stripe.com` slug pool rather
+   than preserving a 1:1 mapping per tier — each live link was verified
+   individually against its own product/price/confirmation-page on Stripe's
+   dashboard, not by assuming the slug text matches its old test-mode tier.
 
    **Customer Portal** (subscribers cancel/manage there; identity = checkout
-   email, no accounts our side) — activated in TEST MODE 19 Jul 2026, login
-   link in `src/core/entitlement.js` PORTAL_URL. At launch: activate the
-   portal again in LIVE mode (settings don't copy across) and swap
-   PORTAL_URL together with PAYMENT_LINKS and the PRICE_* secrets.
+   email, no accounts our side) — activated in TEST MODE 19 Jul 2026,
+   re-activated in LIVE MODE 9 Sep 2026, login link in `src/core/entitlement.js`
+   PORTAL_URL.
 
 2. **Cloudflare account**, if not already created. Install `wrangler` (the
    Cloudflare Workers CLI) — this is a one-off global/dev tool, not a project
@@ -95,9 +95,11 @@ Three endpoints, no database beyond one KV namespace for redemption counts:
    `src/core/entitlement.js` point at
    `https://daybatch-entitlement.daybatch.workers.dev`. The `/claim` flow
    (`main.js` auto-detects `?session_id=` on load, claims, redeems, scrubs
-   the URL) is wired and live-tested against real Stripe test-mode
-   purchases (lifetime + a cancelled subscription). At launch, swap this
-   for the live-mode Worker URL if it differs (same Worker, live secrets).
+   the URL) is wired and was live-tested against real Stripe test-mode
+   purchases (lifetime + a cancelled subscription) before launch. Same
+   Worker URL used for live mode too — only the secrets changed
+   (`STRIPE_SECRET_KEY`/`PRICE_MONTHLY`/`PRICE_YEARLY` set 9 Sep 2026), no
+   URL swap was needed.
 
 8. **Register the Stripe webhook** (dashboard → Developers → Webhooks):
    endpoint URL `<worker url>/webhook`, whichever events you want to observe
