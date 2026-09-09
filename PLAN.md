@@ -158,6 +158,18 @@ One-screen onboarding ("Five puzzles. Every day. That's it."); **stats screen (h
 - **Events tracked (both tools where applicable):** `page_view` (automatic), `game_open {game}`, `game_complete {game, tier}`, `share_click {game}`. No new Worker endpoint needed — both tools are client-side beacons, no server-side event relay.
 **Accept:** GA dashboard shows real events after a manual smoke-test session (page_view, game_open, game_complete, share_click all visible with correct params); consent banner blocks the GA script pre-accept, verified via network request check; declining persists across reload; Cloudflare Web Analytics live on `daybatch.app` needing no consent UI; zero PII in any event payload; no new npm dependency (both are script-tag/beacon integrations, consistent with A1).
 
+### B7 — Footer social links (booked in 9 Aug 2026, not yet scoped in detail)
+
+Wire the stubbed footer social icons (`#footer-social` — icons in place since B5, no real hrefs) to real account URLs, per the D2 go-to-market plan's platform priority: Reddit + X primary, TikTok opportunistic, Instagram/YouTube dormant. **Open question to resolve when this phase actually starts:** which platforms have a real, live Darren-owned account by then — only wire a real `target="_blank" rel="noopener"` href for platforms that do; anything without a live account yet stays exactly as today (stubbed, non-interactive) rather than linking to an empty or placeholder profile. Small phase — mostly a `index.html`/`src/core/ui.js` change plus whatever URLs Darren supplies at build time, no new architecture.
+**Accept:** each footer icon with a live account is a real tappable link to it; each icon without one is unchanged from today's stub; no dead/placeholder links ever shipped.
+
+### B8 — daybatch.com marketing site (booked in 9 Aug 2026, not yet scoped in detail)
+
+Replace the current bare Cloudflare redirect (`daybatch.com` → `daybatch.app`, confirmed live 9 Aug 2026 — see IDEAS.md) with a real marketing/landing page. `daybatch.app` itself stays completely unchanged throughout — zero risk to the share-card URL contract or installed PWA links. Once `.com` serves real content (a redirect can't run any JS at all, confirmed during B6), wire in a tracker: the GA4 web stream for `.com` already exists (created during B6 setup, currently reads zero since there's nothing to track yet) and a Cloudflare Web Analytics site for `.com` should be added the same way `.app`'s was in B6.
+
+**This phase needs a real content/design planning pass before it can get a crisp acceptance-criteria list the way B6's could** — unlike B6/B7, "what should a marketing site actually say and look like" isn't a mechanical build decision. Open questions to resolve before or at the start of this phase: exact content/copy/structure (candidate taglines already parked in IDEAS.md's "App write-up / taglines" entry), hosting approach (same repo as the app, a separate repo, still GitHub Pages or something else), whether the Cloudflare redirect rule gets fully replaced or the new site sits behind different routing, and whether it links out to `.app` or something richer (embedded preview, etc.).
+**Accept:** TBD once the content/design questions above are resolved with Darren.
+
 ---
 
 ## Stage D
